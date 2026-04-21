@@ -94,6 +94,8 @@ def process_jobs(
 
         elif now > job_time + max_lateness:
             print(f"[scheduler] SKIPPED (too late) {job_key}")
+            completed.add(job_key)
+            state_changed = True
 
     return state_changed
 
