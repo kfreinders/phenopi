@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from pathlib import Path
 import subprocess
 import time as time_module
 from typing import Callable
@@ -14,7 +15,11 @@ from .schedule_builder import (
 )
 
 
-def run_capture(python_bin: str, capture_script: str) -> bool:
+def run_capture(
+    python_bin: str,
+    capture_script: str,
+    output_dir: Path
+) -> bool:
     """
     Execute the capture script as a subprocess.
 
@@ -27,13 +32,23 @@ def run_capture(python_bin: str, capture_script: str) -> bool:
         Path to the Python executable used to run the capture script.
     capture_script : str
         Path to the capture script to execute.
+    output_dir : Path
+        Path to save the capture script output to.
 
     Returns
     -------
     bool
         True if the capture script exited with return code 0, False otherwise.
     """
-    result = subprocess.run([python_bin, capture_script], check=False)
+    result = subprocess.run(
+        [
+            python_bin,
+            capture_script,
+            "--output-dir",
+            str(output_dir),
+        ],
+        check=False
+    )
     return result.returncode == 0
 
 
@@ -140,6 +155,7 @@ def run_once(
         run_capture_fn=lambda: run_capture(
             scheduler_config.python_bin,
             scheduler_config.capture_script,
+            scheduler_config.output_dir
         ),
     )
 
