@@ -1,4 +1,6 @@
+import argparse
 from dataclasses import dataclass
+import json
 from pathlib import Path
 from typing import cast
 
@@ -211,3 +213,66 @@ def analyze_images(
     combined.to_csv(combined_path, index=False)
 
     return combined
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Analyze Arabidopsis canopy area from top-view images."
+    )
+
+    parser.add_argument(
+        "images",
+        nargs="+",
+        type=Path,
+        help="Input image path(s).",
+    )
+
+    parser.add_argument(
+        "--outdir",
+        type=Path,
+        default=Path("results"),
+        help="Output directory.",
+    )
+
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Show detailed debug logging.",
+    )
+
+    parser.add_argument("--rotate-angle", type=float, default=1.0)
+    parser.add_argument("--threshold", type=int, default=100)
+    parser.add_argument("--fill-size", type=int, default=200)
+    parser.add_argument("--roi-rows", type=int, default=5)
+    parser.add_argument("--roi-cols", type=int, default=9)
+    parser.add_argument("--pot-diameter-cm", type=float, default=5.0)
+    parser.add_argument("--pot-diameter-px", type=float, default=250.0)
+    parser.add_argument("--debug", default=None)
+
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    cfg = AnalysisConfig(
+        rotate_angle=args.rotate_angle,
+        threshold=args.threshold,
+        fill_size=args.fill_size,
+        roi_rows=args.roi_rows,
+        roi_cols=args.roi_cols,
+        pot_diameter_cm=args.pot_diameter_cm,
+        pot_diameter_px=args.pot_diameter_px,
+        debug=args.debug,
+    )
+    args.outdir.mkdir(parents=True, exist_ok=True)
+
+    config_path = args.outdir / "analysis_config.json"
+
+    with config_path.open("w") as f:
+        json.dump(cfg.__dict__, f, indent=2)
+
+    analyze_images(args.images, args.outdir, cfg)
+
+
+if __name__ == "__main__":
+    main()
