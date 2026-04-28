@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import cast
 import logging
 
+import cv2
 import numpy as np
 import pandas as pd
 from plantcv import plantcv as pcv  # type: ignore[import-not-found]
@@ -70,6 +71,52 @@ def segment_plants(img: np.ndarray, cfg: AnalysisConfig) -> np.ndarray:
     )
     mask = pcv.fill(bin_img=mask, size=cfg.fill_size)
     return mask
+
+
+def remove_square_components(
+    mask: np.ndarray,
+    min_area: int = 200,
+    max_area: int = 20_000,
+    min_rectangularity: float = 0.75,
+    min_aspect_ratio: float = 0.75,
+    max_aspect_ratio: float = 1.35,
+) -> np.ndarray:
+    """
+    Remove square/rectangular connected components from a binary mask.
+
+    Intended to remove ColorChecker patches before computing crop bounds.
+    Plants should usually survive because they are less rectangular.
+    """
+    binary = (mask > 0).astype(np.uint8)
+
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
+        binary,
+        connectivity=8,
+    )
+
+    cleaned = binary.copy()
+
+    for label_id in range(1, num_labels):
+        w = stats[label_id, cv2.CC_STAT_WIDTH]
+        h = stats[label_id, cv2.CC_STAT_HEIGHT]
+        area = stats[label_id, cv2.CC_STAT_AREA]
+
+        if area < min_area or area > max_area:
+            continue
+
+        aspect_ratio = w / h if h > 0 else 0
+        bbox_area = w * h
+        rectangularity = area / bbox_area if bbox_area > 0 else 0
+
+        looks_square = (
+            min_aspect_ratio <= aspect_ratio <= max_aspect_ratio
+            and rectangularity >= min_rectangularity
+        )
+
+        if looks_square:
+            cleaned[labels == label_id] = 0
+
+    return (cleaned * 255).astype(mask.dtype)
 
 
 def crop_to_mask(
@@ -207,8 +254,13 @@ def analyze_image(
     logger.info("Segmenting plants")
     mask = segment_plants(img, cfg)
 
+    logger.info("Removing square-like components before cropping")
+    crop_mask = remove_square_components(mask)
+
     logger.info("Cropping image to detected plant mask")
-    img_crop, mask_crop = crop_to_mask(img, mask, cfg.margin_x, cfg.margin_y)
+    img_crop, mask_crop = crop_to_mask(
+        img, crop_mask, cfg.margin_x, cfg.margin_y
+    )
 
     logger.info(
         f"Creating ROI grid: {cfg.roi_rows} rows x {cfg.roi_cols} cols"
