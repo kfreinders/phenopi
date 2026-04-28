@@ -53,3 +53,61 @@ def segment_plants(img: np.ndarray, cfg: AnalysisConfig) -> np.ndarray:
     )
     mask = pcv.fill(bin_img=mask, size=cfg.fill_size)
     return mask
+
+
+def crop_to_mask(
+    img: np.ndarray,
+    mask: np.ndarray,
+    margin_x: int,
+    margin_y: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    ys, xs = np.where(mask > 0)
+
+    if len(xs) == 0 or len(ys) == 0:
+        raise ValueError(
+            "Segmentation mask is empty. Check threshold settings."
+        )
+
+    x_min = xs.min()
+    x_max = xs.max()
+    y_min = ys.min()
+    y_max = ys.max()
+
+    x0 = max(0, x_min - margin_x)
+    x1 = min(img.shape[1], x_max + margin_x)
+
+    y0 = max(0, y_min - margin_y)
+    y1 = min(img.shape[0], y_max + margin_y)
+
+    width = x1 - x0
+    height = y1 - y0
+
+    img_crop = cast(
+        np.ndarray, pcv.crop(img=img, x=x0, y=y0, h=height, w=width)
+    )
+    mask_crop = cast(
+        np.ndarray, pcv.crop(img=mask, x=x0, y=y0, h=height, w=width)
+    )
+
+    return img_crop, mask_crop
+
+
+def make_labeled_mask(
+    img: np.ndarray,
+    mask: np.ndarray,
+    cfg: AnalysisConfig,
+) -> tuple[np.ndarray, int]:
+    rois = pcv.roi.auto_grid(
+        img=img,
+        mask=mask,
+        nrows=cfg.roi_rows,
+        ncols=cfg.roi_cols,
+    )
+
+    labeled_mask, num_plants = pcv.create_labels(
+        mask=mask,
+        rois=rois,
+        roi_type="partial",
+    )
+
+    return labeled_mask, num_plants
