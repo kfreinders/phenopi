@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import cast
 
 import numpy as np
+import pandas as pd
 from plantcv import plantcv as pcv  # type: ignore[import-not-found]
 
 
@@ -111,3 +112,59 @@ def make_labeled_mask(
     )
 
     return labeled_mask, num_plants
+
+
+def analyze_shape(
+    img: np.ndarray,
+    labeled_mask: np.ndarray,
+    num_plants: int,
+) -> None:
+    pcv.analyze.size(
+        img=img,
+        labeled_mask=labeled_mask,
+        n_labels=num_plants,
+    )
+
+
+def observations_to_dataframe() -> pd.DataFrame:
+    rows = []
+
+    for plant_name, plant_data in pcv.outputs.observations.items():
+        row = {"plant": plant_name}
+
+        for trait_name, trait_info in plant_data.items():
+            if isinstance(trait_info, dict) and "value" in trait_info:
+                row[trait_name] = trait_info["value"]
+
+        rows.append(row)
+
+    return pd.DataFrame(rows)
+
+
+def add_metric_units(df: pd.DataFrame, cfg: AnalysisConfig) -> pd.DataFrame:
+    df = df.copy()
+    cm_per_px = cfg.pot_diameter_cm / cfg.pot_diameter_px
+
+    length_traits = [
+        "width",
+        "height",
+        "perimeter",
+        "longest_path",
+        "ellipse_major_axis",
+        "ellipse_minor_axis",
+    ]
+
+    area_traits = [
+        "area",
+        "convex_hull_area",
+    ]
+
+    for trait in length_traits:
+        if trait in df.columns:
+            df[f"{trait}_cm"] = df[trait] * cm_per_px
+
+    for trait in area_traits:
+        if trait in df.columns:
+            df[f"{trait}_cm2"] = df[trait] * (cm_per_px**2)
+
+    return df
