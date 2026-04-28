@@ -10,6 +10,11 @@ class AnalysisConfig:
     margin_y: int = 200
     roi_rows: int = 5
     roi_cols: int = 9
+    grid_margin_x: int = 0
+    grid_margin_y: int = 0
+    grid_cell_padding_x: int = 0
+    grid_cell_padding_y: int = 0
+    min_component_area: int = 50
     pot_diameter_cm: float = 5.0
     pot_diameter_px: float = 250.0
     debug: str | None = None

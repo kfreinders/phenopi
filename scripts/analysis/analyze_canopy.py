@@ -11,7 +11,8 @@ from .image_preprocessing import (
     segment_plants,
     remove_square_components,
     crop_to_mask,
-    make_labeled_mask
+    make_labeled_mask,
+    save_roi_circle_overlay
 )
 from .measurements import (
     configure_plantcv,
@@ -66,15 +67,24 @@ def analyze_image(
     logger.info(
         f"Creating ROI grid: {cfg.roi_rows} rows x {cfg.roi_cols} cols"
     )
-    labeled_mask, num_plants = make_labeled_mask(img_crop, mask_crop, cfg)
+
+    labeled_mask, num_plants, grid_cells = make_labeled_mask(mask_crop, cfg)
     logger.info("Detected %d plant labels", num_plants)
+
+    stem = image_path.stem
+
+    logger.info("Saving ROI overlay")
+    save_roi_circle_overlay(
+        img_crop,
+        grid_cells,
+        output_dir / f"{stem}_roi_overlay.png",
+    )
 
     logger.info("Measuring plant shape traits")
     analyze_shape(img_crop, labeled_mask, num_plants)
     df = observations_to_dataframe()
     df = add_metric_units(df, cfg)
 
-    stem = image_path.stem
     output_dir.mkdir(parents=True, exist_ok=True)
     csv_path = output_dir / f"{stem}_traits.csv"
     logger.info("Writing traits CSV: %s", csv_path)
@@ -142,6 +152,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fill-size", type=int, default=200)
     parser.add_argument("--roi-rows", type=int, default=5)
     parser.add_argument("--roi-cols", type=int, default=9)
+    parser.add_argument("--grid-margin-x", type=int, default=0)
+    parser.add_argument("--grid-margin-y", type=int, default=0)
+    parser.add_argument("--grid-cell-padding-x", type=int, default=0)
+    parser.add_argument("--grid-cell-padding-y", type=int, default=0)
+    parser.add_argument("--min-component-area", type=int, default=50)
     parser.add_argument("--pot-diameter-cm", type=float, default=5.0)
     parser.add_argument("--pot-diameter-px", type=float, default=250.0)
     parser.add_argument("--debug", default=None)
@@ -163,6 +178,11 @@ def main() -> None:
         fill_size=args.fill_size,
         roi_rows=args.roi_rows,
         roi_cols=args.roi_cols,
+        grid_margin_x=args.grid_margin_x,
+        grid_margin_y=args.grid_margin_y,
+        grid_cell_padding_x=args.grid_cell_padding_x,
+        grid_cell_padding_y=args.grid_cell_padding_y,
+        min_component_area=args.min_component_area,
         pot_diameter_cm=args.pot_diameter_cm,
         pot_diameter_px=args.pot_diameter_px,
         debug=args.debug,
