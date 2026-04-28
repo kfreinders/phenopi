@@ -168,3 +168,46 @@ def add_metric_units(df: pd.DataFrame, cfg: AnalysisConfig) -> pd.DataFrame:
             df[f"{trait}_cm2"] = df[trait] * (cm_per_px**2)
 
     return df
+
+
+def analyze_image(
+    image_path: Path, output_dir: Path, cfg: AnalysisConfig
+) -> pd.DataFrame:
+    configure_plantcv(cfg, output_dir)
+    pcv.outputs.clear()
+
+    img = load_and_rotate_image(image_path, cfg.rotate_angle)
+    mask = segment_plants(img, cfg)
+    img_crop, mask_crop = crop_to_mask(img, mask, cfg.margin_x, cfg.margin_y)
+    labeled_mask, num_plants = make_labeled_mask(img_crop, mask_crop, cfg)
+
+    analyze_shape(img_crop, labeled_mask, num_plants)
+    df = observations_to_dataframe()
+    df = add_metric_units(df, cfg)
+
+    stem = image_path.stem
+    output_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = output_dir / f"{stem}_traits.csv"
+    df.to_csv(csv_path, index=False)
+
+    return df
+
+
+def analyze_images(
+    image_paths: list[Path], output_dir: Path, cfg: AnalysisConfig
+) -> pd.DataFrame:
+    all_results: list[pd.DataFrame] = []
+
+    for image_path in image_paths:
+        df = analyze_image(image_path, output_dir, cfg)
+        df.insert(0, "image", image_path.name)
+        all_results.append(df)
+
+    if not all_results:
+        raise ValueError("No images were provided for analysis.")
+
+    combined = pd.concat(all_results, ignore_index=True)
+    combined_path = output_dir / "combined_traits.csv"
+    combined.to_csv(combined_path, index=False)
+
+    return combined
