@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
-from plantcv import plantcv as pcv
+import numpy as np
+from plantcv import plantcv as pcv  # type: ignore[import-not-found]
 
 
 @dataclass
@@ -31,3 +33,23 @@ def configure_plantcv(cfg: AnalysisConfig, output_dir: Path) -> None:
         debug_dir = output_dir / "debug"
         debug_dir.mkdir(parents=True, exist_ok=True)
         pcv.params.debug_outdir = str(debug_dir)
+
+
+def load_and_rotate_image(image_path: Path, angle: float) -> np.ndarray:
+    img, _, _ = pcv.readimage(filename=str(image_path))  # type: ignore[misc]
+
+    if angle != 0:
+        img = pcv.transform.rotate(img, angle, crop=True)
+
+    return cast(np.ndarray, img)
+
+
+def segment_plants(img: np.ndarray, cfg: AnalysisConfig) -> np.ndarray:
+    a_channel = pcv.rgb2gray_lab(rgb_img=img, channel="a")
+    mask = pcv.threshold.binary(
+        gray_img=a_channel,
+        threshold=cfg.threshold,
+        object_type="dark",
+    )
+    mask = pcv.fill(bin_img=mask, size=cfg.fill_size)
+    return mask
