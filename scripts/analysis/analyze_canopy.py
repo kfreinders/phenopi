@@ -3,10 +3,24 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 from typing import cast
+import logging
 
 import numpy as np
 import pandas as pd
 from plantcv import plantcv as pcv  # type: ignore[import-not-found]
+
+
+def setup_logging(verbose: bool = False) -> None:
+    root_level = logging.INFO
+    script_level = logging.DEBUG if verbose else logging.INFO
+
+    logging.basicConfig(
+        level=root_level,
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    logging.getLogger(__name__).setLevel(script_level)
 
 
 @dataclass
@@ -175,14 +189,34 @@ def add_metric_units(df: pd.DataFrame, cfg: AnalysisConfig) -> pd.DataFrame:
 def analyze_image(
     image_path: Path, output_dir: Path, cfg: AnalysisConfig
 ) -> pd.DataFrame:
+    logger = logging.getLogger(__name__)
+
+    logger.info("Starting analysis: %s", image_path)
     configure_plantcv(cfg, output_dir)
+
+    logger.debug("Clearing previous PlantCV outputs")
     pcv.outputs.clear()
 
+    logger.info(
+        f"Reading "
+        f"{'and rotating ' if cfg.rotate_angle != 0.0 else ''}"
+        f"image: {image_path}"
+    )
     img = load_and_rotate_image(image_path, cfg.rotate_angle)
-    mask = segment_plants(img, cfg)
-    img_crop, mask_crop = crop_to_mask(img, mask, cfg.margin_x, cfg.margin_y)
-    labeled_mask, num_plants = make_labeled_mask(img_crop, mask_crop, cfg)
 
+    logger.info("Segmenting plants")
+    mask = segment_plants(img, cfg)
+
+    logger.info("Cropping image to detected plant mask")
+    img_crop, mask_crop = crop_to_mask(img, mask, cfg.margin_x, cfg.margin_y)
+
+    logger.info(
+        f"Creating ROI grid: {cfg.roi_rows} rows x {cfg.roi_cols} cols"
+    )
+    labeled_mask, num_plants = make_labeled_mask(img_crop, mask_crop, cfg)
+    logger.info("Detected %d plant labels", num_plants)
+
+    logger.info("Measuring plant shape traits")
     analyze_shape(img_crop, labeled_mask, num_plants)
     df = observations_to_dataframe()
     df = add_metric_units(df, cfg)
@@ -190,7 +224,10 @@ def analyze_image(
     stem = image_path.stem
     output_dir.mkdir(parents=True, exist_ok=True)
     csv_path = output_dir / f"{stem}_traits.csv"
+    logger.info("Writing traits CSV: %s", csv_path)
     df.to_csv(csv_path, index=False)
+
+    logger.info("Finished analysis: %s", image_path)
 
     return df
 
@@ -198,9 +235,13 @@ def analyze_image(
 def analyze_images(
     image_paths: list[Path], output_dir: Path, cfg: AnalysisConfig
 ) -> pd.DataFrame:
+    logger = logging.getLogger(__name__)
     all_results: list[pd.DataFrame] = []
 
-    for image_path in image_paths:
+    logger.info("Starting batch analysis for %d image(s)", len(image_paths))
+
+    for i, image_path in enumerate(image_paths):
+        logger.info(f"Processing image {i}/{len(image_paths)}: {image_path}")
         df = analyze_image(image_path, output_dir, cfg)
         df.insert(0, "image", image_path.name)
         all_results.append(df)
@@ -210,7 +251,10 @@ def analyze_images(
 
     combined = pd.concat(all_results, ignore_index=True)
     combined_path = output_dir / "combined_traits.csv"
+    logger.info("Writing combined results: %s", combined_path)
     combined.to_csv(combined_path, index=False)
+
+    logger.info("Batch analysis complete")
 
     return combined
 
@@ -254,6 +298,12 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    setup_logging(verbose=args.verbose)
+
+    logger = logging.getLogger(__name__)
+    logger.info("Starting canopy analysis workflow")
+    logger.info("Output directory: %s", args.outdir)
+
     cfg = AnalysisConfig(
         rotate_angle=args.rotate_angle,
         threshold=args.threshold,
@@ -267,11 +317,13 @@ def main() -> None:
     args.outdir.mkdir(parents=True, exist_ok=True)
 
     config_path = args.outdir / "analysis_config.json"
+    logger.info("Writing analysis config: %s", config_path)
 
     with config_path.open("w") as f:
         json.dump(cfg.__dict__, f, indent=2)
 
     analyze_images(args.images, args.outdir, cfg)
+    logger.info("Workflow finished successfully")
 
 
 if __name__ == "__main__":
