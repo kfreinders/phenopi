@@ -1,5 +1,7 @@
 import argparse
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import json
+import os
 from pathlib import Path
 import logging
 
@@ -33,6 +35,16 @@ def setup_logging(verbose: bool = False) -> None:
     )
 
     logging.getLogger(__name__).setLevel(script_level)
+
+
+def _analyze_image_worker(
+    image_path: Path,
+    output_dir: Path,
+    cfg: AnalysisConfig,
+) -> pd.DataFrame:
+    df = analyze_image(image_path, output_dir, cfg)
+    df.insert(0, "image", image_path.name)
+    return df
 
 
 def analyze_image(
@@ -96,29 +108,61 @@ def analyze_image(
 
 
 def analyze_images(
-    image_paths: list[Path], output_dir: Path, cfg: AnalysisConfig
+    image_paths: list[Path],
+    output_dir: Path,
+    cfg: AnalysisConfig,
+    n_workers: int | None = None,
 ) -> pd.DataFrame:
     logger = logging.getLogger(__name__)
     all_results: list[pd.DataFrame] = []
 
-    logger.info("Starting batch analysis for %d image(s)", len(image_paths))
-
-    for i, image_path in enumerate(image_paths, start=1):
-        logger.info(f"Processing image {i}/{len(image_paths)}: {image_path}")
-        df = analyze_image(image_path, output_dir, cfg)
-        df.insert(0, "image", image_path.name)
-        all_results.append(df)
-
-    if not all_results:
+    if not image_paths:
         raise ValueError("No images were provided for analysis.")
+
+    logger.info(f"Starting batch analysis for {len(image_paths)} image(s)")
+    logger.info(f"Using {n_workers} worker(s)")
+
+    if n_workers and n_workers <= 1:
+        for i, image_path in enumerate(image_paths, start=1):
+            logger.info(
+                f"Processing image {i}/{len(image_paths)}: {image_path}"
+            )
+            df = _analyze_image_worker(image_path, output_dir, cfg)
+            all_results.append(df)
+
+    else:
+        with ProcessPoolExecutor(max_workers=n_workers) as executor:
+            futures = {
+                executor.submit(
+                    _analyze_image_worker,
+                    image_path,
+                    output_dir,
+                    cfg,
+                ): image_path
+                for image_path in image_paths
+            }
+
+            for i, future in enumerate(as_completed(futures), start=1):
+                image_path = futures[future]
+
+                try:
+                    df = future.result()
+                except Exception:
+                    logger.exception("Failed to analyze image: %s", image_path)
+                    raise
+
+                logger.info(
+                    "Finished image %d/%d: %s", i, len(image_paths), image_path
+                )
+                all_results.append(df)
 
     combined = pd.concat(all_results, ignore_index=True)
     combined_path = output_dir / "combined_traits.csv"
+
     logger.info("Writing combined results: %s", combined_path)
     combined.to_csv(combined_path, index=False)
 
     logger.info("Batch analysis complete")
-
     return combined
 
 
@@ -145,6 +189,12 @@ def parse_args() -> argparse.Namespace:
         "--verbose",
         action="store_true",
         help="Show detailed debug logging.",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of parallel worker processes (default: cores - 1).",
     )
 
     parser.add_argument("--rotate-angle", type=float, default=1.0)
@@ -195,7 +245,14 @@ def main() -> None:
     with config_path.open("w") as f:
         json.dump(cfg.__dict__, f, indent=2)
 
-    analyze_images(args.images, args.outdir, cfg)
+    cpu_count = os.cpu_count() or 1
+
+    if (n_workers := args.workers) is None:
+        n_workers = max(1, cpu_count - 1)
+
+    logger.info(f"Using {n_workers} workers")
+
+    analyze_images(args.images, args.outdir, cfg, n_workers)
     logger.info("Workflow finished successfully")
 
 
