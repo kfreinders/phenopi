@@ -103,7 +103,7 @@ def analyze_images(
 
     logger.info("Starting batch analysis for %d image(s)", len(image_paths))
 
-    for i, image_path in enumerate(image_paths):
+    for i, image_path in enumerate(image_paths, start=1):
         logger.info(f"Processing image {i}/{len(image_paths)}: {image_path}")
         df = analyze_image(image_path, output_dir, cfg)
         df.insert(0, "image", image_path.name)
