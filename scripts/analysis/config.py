@@ -4,6 +4,7 @@ from dataclasses import dataclass
 @dataclass
 class AnalysisConfig:
     rotate_angle: float = 1.0
+    sepchannel: str = "a"
     threshold: int = 100
     fill_size: int = 200
     margin_x: int = 200

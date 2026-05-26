@@ -43,9 +43,10 @@ def load_and_rotate_image(image_path: Path, angle: float) -> np.ndarray:
 
 
 def segment_plants(img: np.ndarray, cfg: AnalysisConfig) -> np.ndarray:
-    a_channel = pcv.rgb2gray_lab(rgb_img=img, channel="a")
+    channel = pcv.rgb2gray_lab(rgb_img=img, channel=cfg.sepchannel)
+    pcv.visualize.histogram(img=channel, bins=25)
     mask = pcv.threshold.binary(
-        gray_img=a_channel,
+        gray_img=channel,
         threshold=cfg.threshold,
         object_type="dark",
     )

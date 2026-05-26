@@ -197,6 +197,16 @@ def parse_args() -> argparse.Namespace:
         help="Number of parallel worker processes (default: cores - 1).",
     )
 
+    parser.add_argument(
+        "--sepchannel",
+        choices=["l", "a", "b"],
+        default="a",
+        help=(
+            "LAB channel to use: l=lightness, a=green-magenta, "
+            "b=blue-yellow."
+        ),
+    )
+
     parser.add_argument("--rotate-angle", type=float, default=1.0)
     parser.add_argument("--threshold", type=int, default=100)
     parser.add_argument("--fill-size", type=int, default=200)
@@ -224,6 +234,7 @@ def main() -> None:
 
     cfg = AnalysisConfig(
         rotate_angle=args.rotate_angle,
+        sepchannel=args.sepchannel,
         threshold=args.threshold,
         fill_size=args.fill_size,
         roi_rows=args.roi_rows,
