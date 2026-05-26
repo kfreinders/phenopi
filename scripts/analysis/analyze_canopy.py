@@ -193,8 +193,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--workers",
         type=int,
-        default=1,
-        help="Number of parallel worker processes (default: cores - 1).",
+        default=((n - 2) if (n := os.cpu_count()) is not None else 1),
+        help="Number of parallel worker processes (default: cores - 2).",
     )
 
     parser.add_argument(
@@ -256,14 +256,9 @@ def main() -> None:
     with config_path.open("w") as f:
         json.dump(cfg.__dict__, f, indent=2)
 
-    cpu_count = os.cpu_count() or 1
+    logger.info(f"Using {args.workers} workers")
 
-    if (n_workers := args.workers) is None:
-        n_workers = max(1, cpu_count - 1)
-
-    logger.info(f"Using {n_workers} workers")
-
-    analyze_images(args.images, args.outdir, cfg, n_workers)
+    analyze_images(args.images, args.outdir, cfg, args.workers)
     logger.info("Workflow finished successfully")
 
 
