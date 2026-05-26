@@ -12,9 +12,9 @@ from .image_preprocessing import (
     load_and_rotate_image,
     segment_plants,
     remove_square_components,
-    crop_to_mask,
+    resolve_analysis_frame,
     make_labeled_mask,
-    save_roi_circle_overlay
+    save_roi_circle_overlay,
 )
 from .measurements import (
     configure_plantcv,
@@ -65,16 +65,17 @@ def analyze_image(
     )
     img = load_and_rotate_image(image_path, cfg.rotate_angle)
 
+    logger.info("Visualizing colorspaces")
+    pcv.visualize.colorspaces(rgb_img=img, original_img=False)
+
     logger.info("Segmenting plants")
     mask = segment_plants(img, cfg)
 
     logger.info("Removing square-like components before cropping")
     crop_mask = remove_square_components(mask)
 
-    logger.info("Cropping image to detected plant mask")
-    img_crop, mask_crop = crop_to_mask(
-        img, crop_mask, cfg.margin_x, cfg.margin_y
-    )
+    logger.info("Resolving analysis frame")
+    img_crop, mask_crop = resolve_analysis_frame(img, mask, crop_mask, cfg)
 
     logger.info(
         f"Creating ROI grid: {cfg.roi_rows} rows x {cfg.roi_cols} cols"
@@ -210,6 +211,48 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rotate-angle", type=float, default=1.0)
     parser.add_argument("--threshold", type=int, default=100)
     parser.add_argument("--fill-size", type=int, default=200)
+    parser.add_argument(
+        "--frame-source",
+        choices=["pot-grid", "plant-mask"],
+        default="pot-grid",
+        help="How to choose the automatic analysis frame.",
+    )
+    parser.add_argument(
+        "--pot-frame-padding-x",
+        type=int,
+        default=0,
+        help="Horizontal padding around pot-grid ROI bounds.",
+    )
+    parser.add_argument(
+        "--pot-frame-padding-y",
+        type=int,
+        default=0,
+        help="Vertical padding around pot-grid ROI bounds.",
+    )
+    parser.add_argument(
+        "--grid-x",
+        type=int,
+        default=None,
+        help="Manual ROI left edge in pixels on the rotated image.",
+    )
+    parser.add_argument(
+        "--grid-y",
+        type=int,
+        default=None,
+        help="Manual ROI top edge in pixels on the rotated image.",
+    )
+    parser.add_argument(
+        "--grid-width",
+        type=int,
+        default=None,
+        help="Manual ROI width in pixels on the rotated image.",
+    )
+    parser.add_argument(
+        "--grid-height",
+        type=int,
+        default=None,
+        help="Manual ROI height in pixels on the rotated image.",
+    )
     parser.add_argument("--roi-rows", type=int, default=5)
     parser.add_argument("--roi-cols", type=int, default=9)
     parser.add_argument("--grid-margin-x", type=int, default=0)
@@ -237,6 +280,13 @@ def main() -> None:
         sepchannel=args.sepchannel,
         threshold=args.threshold,
         fill_size=args.fill_size,
+        frame_source=args.frame_source,
+        pot_frame_padding_x=args.pot_frame_padding_x,
+        pot_frame_padding_y=args.pot_frame_padding_y,
+        grid_x=args.grid_x,
+        grid_y=args.grid_y,
+        grid_width=args.grid_width,
+        grid_height=args.grid_height,
         roi_rows=args.roi_rows,
         roi_cols=args.roi_cols,
         grid_margin_x=args.grid_margin_x,
