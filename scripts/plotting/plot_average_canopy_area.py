@@ -577,3 +577,44 @@ def plot_summary(
         plt.show()
 
     plt.close(fig)
+
+
+def parse_optional_timestamp(value: str | None) -> pd.Timestamp | None:
+    """Parse an optional timestamp argument.
+
+    Parameters
+    ----------
+    value
+        Timestamp string or ``None``.
+
+    Returns
+    -------
+    pandas.Timestamp or None
+        Parsed timestamp, or ``None`` when no value was provided.
+    """
+    if value is None:
+        return None
+
+    timestamp = pd.Timestamp(value)
+    if not isinstance(timestamp, pd.Timestamp):
+        raise ValueError(f"Invalid timestamp: {value!r}")
+
+    return timestamp
+
+
+def write_csv(df: pd.DataFrame, path: Path) -> None:
+    """Write a CSV file, creating parent directories if needed.
+
+    Parameters
+    ----------
+    df
+        Data frame to write.
+    path
+        Output path.
+
+    Returns
+    -------
+    None
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(path, index=False)
