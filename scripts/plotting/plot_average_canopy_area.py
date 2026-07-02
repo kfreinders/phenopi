@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 
 import matplotlib.dates as mdates
@@ -7,6 +8,88 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 import numpy as np
 import pandas as pd
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments.
+
+    Returns
+    -------
+    argparse.Namespace
+        Parsed command-line arguments.
+    """
+    parser = argparse.ArgumentParser(
+        description="Plot canopy area and plant-level absolute growth rate."
+    )
+    parser.add_argument(
+        "--input",
+        type=Path,
+        default=Path("results/combined_traits.csv"),
+        help="Combined traits CSV.",
+    )
+    parser.add_argument(
+        "--input-dir",
+        type=Path,
+        default=None,
+        help="Optional directory with capture_*_traits.csv files.",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("results/average_canopy_area_vs_time.png"),
+        help="Output plot path.",
+    )
+    parser.add_argument(
+        "--summary-csv",
+        type=Path,
+        default=Path("results/average_canopy_area_vs_time.csv"),
+        help="Output time-level summary CSV.",
+    )
+    parser.add_argument(
+        "--plant-curves-csv",
+        type=Path,
+        default=Path("results/plant_growth_curves.csv"),
+        help="Output plant-level curves CSV.",
+    )
+    parser.add_argument(
+        "--growth-summary-csv",
+        type=Path,
+        default=Path("results/growth_rate_summary.csv"),
+        help="Output period-level growth summary CSV.",
+    )
+    parser.add_argument(
+        "--time-window",
+        default="30min",
+        help="Time bin used to collapse replicate images.",
+    )
+    parser.add_argument(
+        "--growth-window-hours",
+        type=float,
+        default=24,
+        help="Centered window, in hours, used for plant-level AGR fits.",
+    )
+    parser.add_argument(
+        "--growth-min-points",
+        type=int,
+        default=8,
+        help="Minimum points required for each local AGR fit.",
+    )
+    parser.add_argument(
+        "--treatment-start",
+        default=None,
+        help="Optional treatment start, e.g. '2026-06-05 00:00'.",
+    )
+    parser.add_argument(
+        "--treatment-end",
+        default=None,
+        help="Optional treatment end, e.g. '2026-06-08 23:59'.",
+    )
+    parser.add_argument(
+        "--show",
+        action="store_true",
+        help="Show plot interactively.",
+    )
+    return parser.parse_args()
 
 
 def load_traits(
@@ -618,3 +701,54 @@ def write_csv(df: pd.DataFrame, path: Path) -> None:
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(path, index=False)
+
+
+def main() -> None:
+    """Run the complete plotting workflow.
+
+    Returns
+    -------
+    None
+    """
+    args = parse_args()
+
+    treatment_start = parse_optional_timestamp(args.treatment_start)
+    treatment_end = parse_optional_timestamp(args.treatment_end)
+
+    traits = load_traits(args.input, args.input_dir)
+    plant_curves = build_plant_curves(traits, args.time_window)
+    plant_curves = add_absolute_growth_rates(
+        plant_curves,
+        window_hours=args.growth_window_hours,
+        min_points=args.growth_min_points,
+    )
+
+    summary = summarize_by_time(plant_curves)
+    growth_summary = summarize_growth_periods(
+        summary,
+        treatment_start=treatment_start,
+        treatment_end=treatment_end,
+    )
+
+    write_csv(summary, args.summary_csv)
+    write_csv(plant_curves, args.plant_curves_csv)
+    write_csv(growth_summary, args.growth_summary_csv)
+
+    plot_summary(
+        summary,
+        plant_curves,
+        args.output,
+        treatment_start=treatment_start,
+        treatment_end=treatment_end,
+        show=args.show,
+    )
+
+    print(f"Wrote plot: {args.output}")
+    print(f"Wrote summary: {args.summary_csv}")
+    print(f"Wrote plant curves: {args.plant_curves_csv}")
+    print(f"Wrote growth summary: {args.growth_summary_csv}")
+    print(growth_summary.to_string(index=False))
+
+
+if __name__ == "__main__":
+    main()
