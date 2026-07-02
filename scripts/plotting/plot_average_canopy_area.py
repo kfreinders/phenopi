@@ -1,5 +1,10 @@
 from pathlib import Path
 
+import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 import numpy as np
 import pandas as pd
 
@@ -170,6 +175,42 @@ def fit_local_absolute_growth(
     return growth.reindex(plant_df.index)
 
 
+def add_absolute_growth_rates(
+    plant_curves: pd.DataFrame,
+    window_hours: float,
+    min_points: int,
+) -> pd.DataFrame:
+    """Add plant-level absolute growth rates.
+
+    Parameters
+    ----------
+    plant_curves
+        Plant-level canopy-area time series.
+    window_hours
+        Width of the centered fitting window in hours.
+    min_points
+        Minimum number of points required in a local fit.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Copy of ``plant_curves`` with ``plant_agr_cm2_per_day`` added.
+    """
+    out = plant_curves.copy()
+    out["plant_agr_cm2_per_day"] = np.nan
+
+    for _, plant_df in out.groupby("plant", observed=True):
+        out.loc[plant_df.index, "plant_agr_cm2_per_day"] = (
+            fit_local_absolute_growth(
+                plant_df,
+                window_hours=window_hours,
+                min_points=min_points,
+            )
+        )
+
+    return out
+
+
 def summarize_by_time(plant_curves: pd.DataFrame) -> pd.DataFrame:
     """Summarize plant-level area and absolute growth rate by time bin.
 
@@ -292,3 +333,247 @@ def summarize_growth_periods(
         )
 
     return pd.DataFrame(rows)
+
+
+def iter_chunks(
+    df: pd.DataFrame,
+    max_gap: pd.Timedelta | None = None,
+) -> list[pd.DataFrame]:
+    """Split a time series into chunks separated by large gaps.
+
+    Parameters
+    ----------
+    df
+        Data frame containing ``time_bin``.
+    max_gap
+        Maximum allowed time gap before starting a new chunk.
+
+    Returns
+    -------
+    list of pandas.DataFrame
+        Continuous observed chunks.
+    """
+    if max_gap is None:
+        max_gap = pd.Timedelta(1, unit="h")
+
+    if df.empty:
+        return []
+
+    df = df.sort_values("time_bin")
+    chunk_id = (df["time_bin"].diff() > max_gap).cumsum()
+
+    return [chunk for _, chunk in df.groupby(chunk_id, sort=False)]
+
+
+def shade_treatment(
+    ax: Axes,
+    treatment_start: pd.Timestamp | None,
+    treatment_end: pd.Timestamp | None,
+) -> None:
+    """Shade a treatment interval if provided.
+
+    Parameters
+    ----------
+    ax
+        Axis to annotate.
+    treatment_start
+        Optional treatment start timestamp.
+    treatment_end
+        Optional treatment end timestamp.
+
+    Returns
+    -------
+    None
+    """
+    if treatment_start is None or treatment_end is None:
+        return
+
+    ax.axvspan(
+        mdates.date2num(treatment_start),
+        mdates.date2num(treatment_end),
+        color="#f2c14e",
+        alpha=0.18,
+        linewidth=0,
+    )
+
+
+def plot_summary(
+    summary: pd.DataFrame,
+    plant_curves: pd.DataFrame,
+    output_path: Path,
+    treatment_start: pd.Timestamp | None = None,
+    treatment_end: pd.Timestamp | None = None,
+    show: bool = False,
+) -> None:
+    """Plot canopy area and plant-level absolute growth rate.
+
+    Parameters
+    ----------
+    summary
+        Time-level area and absolute-growth-rate summary.
+    plant_curves
+        Plant-level canopy-area and absolute-growth-rate time series.
+    output_path
+        Output plot path.
+    treatment_start
+        Optional treatment start timestamp.
+    treatment_end
+        Optional treatment end timestamp.
+    show
+        Whether to show the plot interactively.
+
+    Returns
+    -------
+    None
+    """
+    summary = summary.copy()
+    plant_curves = plant_curves.copy()
+
+    summary["x"] = mdates.date2num(summary["time_bin"])
+    plant_curves["x"] = mdates.date2num(plant_curves["time_bin"])
+
+    fig, axes = plt.subplots(
+        2,
+        1,
+        figsize=(12, 7),
+        sharex=True,
+        gridspec_kw={"height_ratios": [2, 1]},
+    )
+    area_ax, growth_ax = axes
+
+    shade_treatment(area_ax, treatment_start, treatment_end)
+    shade_treatment(growth_ax, treatment_start, treatment_end)
+
+    for _, plant_df in plant_curves.groupby("plant", observed=True):
+        for chunk in iter_chunks(plant_df):
+            area_ax.plot(
+                chunk["x"],
+                chunk["area_cm2"],
+                color="0.7",
+                linewidth=0.5,
+                alpha=0.18,
+            )
+
+    for chunk in iter_chunks(summary):
+        area_ax.fill_between(
+            chunk["x"],
+            chunk["q25_area_cm2"],
+            chunk["q75_area_cm2"],
+            color="#1f77b4",
+            alpha=0.14,
+            linewidth=0,
+        )
+        area_ax.plot(
+            chunk["x"],
+            chunk["median_area_cm2"],
+            color="black",
+            linewidth=1.8,
+        )
+
+        growth_ax.fill_between(
+            chunk["x"],
+            chunk["q025_agr_cm2_per_day"],
+            chunk["q975_agr_cm2_per_day"],
+            color="#2ca02c",
+            alpha=0.10,
+            linewidth=0,
+        )
+        growth_ax.fill_between(
+            chunk["x"],
+            chunk["q25_agr_cm2_per_day"],
+            chunk["q75_agr_cm2_per_day"],
+            color="#2ca02c",
+            alpha=0.22,
+            linewidth=0,
+        )
+        growth_ax.plot(
+            chunk["x"],
+            chunk["median_agr_cm2_per_day"],
+            color="black",
+            linewidth=1.8,
+        )
+
+    growth_ax.axhline(0, color="0.4", linestyle="--", linewidth=1)
+
+    legend_handles = [
+        Patch(
+            facecolor="#1f77b4",
+            alpha=0.14,
+            edgecolor="none",
+            label="Area plant IQR",
+        ),
+        Patch(
+            facecolor="#2ca02c",
+            alpha=0.10,
+            edgecolor="none",
+            label="AGR plant 95% interval",
+        ),
+        Patch(
+            facecolor="#2ca02c",
+            alpha=0.22,
+            edgecolor="none",
+            label="AGR plant IQR",
+        ),
+        Line2D(
+            [0],
+            [0],
+            color="black",
+            linewidth=1.8,
+            label="Median",
+        ),
+    ]
+
+    if treatment_start is not None and treatment_end is not None:
+        legend_handles.insert(
+            0,
+            Patch(
+                facecolor="#f2c14e",
+                alpha=0.18,
+                edgecolor="none",
+                label="Treatment",
+            ),
+        )
+
+    fig.legend(
+        handles=legend_handles,
+        frameon=False,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.995),
+        ncol=len(legend_handles),
+        fontsize=9,
+    )
+
+    for ax in axes:
+        ax.xaxis_date()
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+
+    growth_values = summary["median_agr_cm2_per_day"].dropna()
+    if not growth_values.empty:
+        y_min = float(growth_values.quantile(0.02))
+        y_max = float(growth_values.quantile(0.98))
+        y_pad = max(0.1, 0.25 * (y_max - y_min))
+        growth_ax.set_ylim(0, y_max + y_pad)
+
+    area_ax.set_title("Canopy area and absolute growth rate over time", pad=22)
+    area_ax.set_ylabel("Canopy area (cm²)")
+    growth_ax.set_ylabel("Absolute growth rate\n(cm² day⁻¹)")
+    growth_ax.set_xlabel("Clock time; overnight periods not imaged")
+
+    growth_ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
+    growth_ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
+
+    growth_ax.xaxis.set_minor_locator(mdates.HourLocator(byhour=[8, 20]))
+    growth_ax.tick_params(axis="x", which="major", length=5)
+    growth_ax.tick_params(axis="x", which="minor", length=2, labelbottom=False)
+
+    fig.autofmt_xdate(rotation=0, ha="center")
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=300)
+
+    if show:
+        plt.show()
+
+    plt.close(fig)
