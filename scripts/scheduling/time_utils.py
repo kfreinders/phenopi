@@ -97,6 +97,64 @@ def every_n_minutes_for_duration(
     return times
 
 
+def centered_time_range(
+    center: str,
+    before_minutes: int,
+    after_minutes: int,
+    step_minutes: int,
+) -> list[str]:
+    """
+    Generate capture times around a central time point.
+
+    This is useful for creating a denser acquisition window around a treatment,
+    watering event, stress application, or calibration time.
+
+    Parameters
+    ----------
+    center : str
+        Central time in 24-hour "HH:MM" format.
+    before_minutes : int
+        Number of minutes before `center` to include. Must be greater than or
+        equal to 0.
+    after_minutes : int
+        Number of minutes after `center` to include. Must be greater than or
+        equal to 0.
+    step_minutes : int
+        Interval between consecutive capture times, in minutes. Must be greater
+        than 0.
+
+    Returns
+    -------
+    list[str]
+        Capture times in "HH:MM" format.
+
+    Raises
+    ------
+    ValueError
+        If `before_minutes` or `after_minutes` is negative, if `step_minutes`
+        is not greater than 0, or if `center` is not a valid "HH:MM" string.
+    """
+    if before_minutes < 0:
+        raise ValueError("before_minutes must be >= 0")
+    if after_minutes < 0:
+        raise ValueError("after_minutes must be >= 0")
+    if step_minutes <= 0:
+        raise ValueError("step_minutes must be > 0")
+
+    center_dt = datetime.strptime(center, "%H:%M")
+    start_dt = center_dt - timedelta(minutes=before_minutes)
+    end_dt = center_dt + timedelta(minutes=after_minutes)
+
+    times: list[str] = []
+    current = start_dt
+
+    while current <= end_dt:
+        times.append(current.strftime("%H:%M"))
+        current += timedelta(minutes=step_minutes)
+
+    return times
+
+
 def combine_times(*time_lists: list[str]) -> list[str]:
     """
     Combine multiple lists of time strings into one sorted unique list.
