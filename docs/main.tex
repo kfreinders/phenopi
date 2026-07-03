@@ -81,6 +81,101 @@ Phenopi has primarily been developed and tested on Arch- and Debian-based Linux
 distributions and Raspberry Pi hardware, but should work on other distributions
 also.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Section 2
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{System Overview}
+
+\subsection{Overview}
+
+Phenopi is organized in three main parts: image acquisition, image analysis,
+and biological analysis. Together, these parts form a workflow that starts with
+an experiment configuration file and ends with trait tables, diagnostic
+outputs, and growth analysis. The sections below give a brief overview of each
+part of the system. Detailed instructions are provided in later chapters.
+
+\subsection{Image Acquisition}
+
+The image acquisition subsystem captures images at predefined times during an
+experiment. It is controlled by a lightweight scheduler running on a Raspberry
+Pi, and installed as a service (meaning it's always running in the background).
+The scheduler reads a user-defined schedule and runs capture jobs within their
+permitted time windows. It also keeps track of completed captures, which helps
+prevent duplicate images when the system is restarted or interrupted. Captured
+images are timestamped automatically and stored using a standard filename
+convention.
+
+\subsection{Image Analysis}
+
+After acquisition, RGB images are processed by the canopy analysis pipeline.
+This pipeline prepares the images, assigns regions of interest, segments the
+plants, extracts basic morphological traits, and writes the results to output
+tables. The pipeline is intended for batch processing of complete experiments.
+Where possible, images are processed in parallel to reduce analysis time.
+
+\subsection{Quality Control}
+
+Quality control is an important part of the Phenopi workflow. Automated image
+analysis can fail when lighting changes, plants move, segmentation settings are
+unsuitable, or images are missing. Phenopi produces diagnostic outputs that
+help users inspect these problems. These include segmentation overlays and
+colour diagnostics. Users should review these outputs before interpreting the
+biological results.
+
+\subsection{Biological Analysis}
+
+The extracted trait tables are used for downstream biological analysis. Current
+analysis modules support growth curves, individual plant trajectories and
+growth rate estimation. These analyses are intended as a starting point for
+interpreting experiment results. More specialized statistical analyses may
+still need to be performed separately, depending on the experimental design.
+
+\subsection{Directory Structure}
+
+A typical installation directory has the following structure:
+
+\begin{forest}
+  for tree={
+    font=\ttfamily,
+    grow'=0,
+    child anchor=west,
+    parent anchor=south,
+    anchor=west,
+    calign=first,
+    edge path={
+    \noexpand\path[draw, \forestoption{edge}]
+    (!u.south west) + (7.5pt,0) |- (.child anchor)\forestoption{edge label};
+    },
+    before typesetting nodes={
+    if n=1
+    {insert before={[,phantom]}}
+    {}
+    },
+    fit=band,
+    before computing xy={l=15pt},
+  }
+  [phenopi/
+    [deploy/]
+    [docs/]
+    [captures/
+      [capture\_20260508\_080000.jpg]
+      [capture\_20260508\_080030.jpg]
+      [\ldots]
+    ]
+    [runtime/
+      [schedule.json]
+      [completed\_jobs.json]
+    ]
+    [results/]
+    [scripts/]
+  ]
+\end{forest}
+
+The directory structure is kept simple so that files can be inspected manually
+and processed automatically. In general, raw images are stored in
+\texttt{captures/}, while analysis outputs are written to \texttt{results/}.
+
 %-------------------------------------------------------------------------------
 %    REFERENCES
 %-------------------------------------------------------------------------------
