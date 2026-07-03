@@ -30,6 +30,16 @@ def every_n_minutes(start: str, end: str, step_minutes: int) -> list[str]:
     ValueError
         If `step_minutes` is not greater than 0, or if `start` or `end` are not
         valid "HH:MM" strings.
+
+    Examples
+    --------
+    >>> every_n_minutes("09:00", "10:00", 30)
+    ['09:00', '09:30', '10:00']
+
+    The end time is only included if it falls exactly on a step.
+
+    >>> every_n_minutes("09:00", "09:45", 30)
+    ['09:00', '09:30']
     """
     if step_minutes <= 0:
         raise ValueError("step_minutes must be > 0")
@@ -80,6 +90,17 @@ def every_n_minutes_for_duration(
     ValueError
         If `step_minutes` is not greater than 0, or if `start` is not a valid
         "HH:MM" string.
+
+    Examples
+    --------
+    >>> every_n_minutes_for_duration("12:00", 60, 20)
+    ['12:00', '12:20', '12:40', '13:00']
+
+    The final time is omitted if the duration is not reached exactly by
+    stepping.
+
+    >>> every_n_minutes_for_duration("12:00", 45, 20)
+    ['12:00', '12:20', '12:40']
     """
     if duration_minutes < 0:
         raise ValueError("duration_minutes must be >= 0")
@@ -133,6 +154,17 @@ def centered_time_range(
     ValueError
         If `before_minutes` or `after_minutes` is negative, if `step_minutes`
         is not greater than 0, or if `center` is not a valid "HH:MM" string.
+
+    Examples
+    --------
+    >>> centered_time_range("12:00", 60, 60, 30)
+    ['11:00', '11:30', '12:00', '12:30', '13:00']
+
+    The sequence is stepped from the calculated start time. The center is not
+    forced into the output.
+
+    >>> centered_time_range("12:00", 45, 45, 30)
+    ['11:15', '11:45', '12:15', '12:45']
     """
     if before_minutes < 0:
         raise ValueError("before_minutes must be >= 0")
@@ -171,5 +203,15 @@ def combine_times(*time_lists: list[str]) -> list[str]:
     -------
     list[str]
         Sorted list of unique time strings.
+
+    Examples
+    --------
+    >>> combine_times(["09:00", "10:00"], ["09:30", "10:00"])
+    ['09:00', '09:30', '10:00']
+
+    Input lists do not need to be sorted.
+
+    >>> combine_times(["10:00", "09:00"], ["09:30"])
+    ['09:00', '09:30', '10:00']
     """
     return sorted({t for lst in time_lists for t in lst})
