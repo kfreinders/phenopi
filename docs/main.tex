@@ -34,6 +34,53 @@
 %    ARTICLE CONTENTS
 %-------------------------------------------------------------------------------
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Section 1
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Introduction}
+
+\subsection{Purpose}
+
+Phenopi is an image-based plant phenotyping system for controlled-environment
+experiments. It combines automated image acquisition, image analysis, quality
+control, and growth analysis in a modular workflow. The system was developed as
+a low-cost alternative to commercial phenotyping platforms. It is intended for
+experiments where plants are imaged repeatedly over time and quantitative
+traits, such as canopy area and growth rate, are extracted from RGB images.
+Phenopi can be run on inexpensive hardware such as Raspberry Pi camera setups.
+The software is currently command-line based, but a GUI is currently on the
+TODO list.
+
+\subsection{Scope}
+
+Phenopi currently supports the workflow from image acquisition to trait
+extraction and growth analysis. This includes scheduled image acquisition,
+experiment logging, canopy segmentation, extraction of morphological traits,
+colour-space diagnostics and growth curve analysis. Additional machine-learning
+modules for image-based trait analysis are under development.
+
+\subsection{Target Audience}
+
+This manual is intended for researchers conducting controlled-environment plant
+experiments. Extensive programming experience is not required, but users should
+be comfortable opening a terminal, running commands, and navigating experiment
+folders. The manual focuses on practical use: setting up an experiment,
+acquiring images, running the analysis, checking the results, and interpreting
+the main output files.
+
+\subsection{Software Philosophy}
+
+Phenopi is a collection of small tools rather than a single large application.
+Each tool performs one part of the workflow and communicates through defined
+input and output files. This structure makes the workflow easier to inspect,
+repeat, and modify. Image acquisition, segmentation, trait extraction, and
+plotting can be run separately, which helps with troubleshooting and
+reproducibility. The examples in this manual use Linux command-line syntax.
+Phenopi has primarily been developed and tested on Arch- and Debian-based Linux
+distributions and Raspberry Pi hardware, but should work on other distributions
+also.
+
 %-------------------------------------------------------------------------------
 %    REFERENCES
 %-------------------------------------------------------------------------------
