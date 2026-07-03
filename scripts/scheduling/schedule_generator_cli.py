@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timedelta
+from pathlib import Path
+import json
 
 
 def every_n_minutes(start: str, end: str, step_minutes: int) -> list[str]:
@@ -218,9 +220,59 @@ def combine_times(*time_lists: list[str]) -> list[str]:
     return sorted({t for lst in time_lists for t in lst})
 
 
+def add_schedule_output_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--start-date",
+        required=True,
+        help="Experiment start date, YYYY-MM-DD.",
+    )
+    parser.add_argument(
+        "--num-days",
+        type=int,
+        required=True,
+        help="Number of experiment days.",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="Output schedule JSON path.",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Overwrite output file if it already exists.",
+    )
+
+
+def write_schedule(
+    output: Path,
+    start_date: str,
+    num_days: int,
+    times: list[str],
+    overwrite: bool = False,
+) -> None:
+    if num_days <= 0:
+        raise ValueError("--num-days must be > 0")
+
+    if output.exists() and not overwrite:
+        raise FileExistsError(
+            f"Output already exists: {output}. Use --overwrite to replace it."
+        )
+
+    schedule = {
+        "start_date": start_date,
+        "num_days": num_days,
+        "times": times,
+    }
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(schedule, indent=2) + "\n")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate Phenopi capture times and print them to stdout."
+        description="Generate Phenopi schedule JSON files."
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -237,6 +289,7 @@ def parse_args() -> argparse.Namespace:
         required=True,
         help="Interval between captures in minutes.",
     )
+    add_schedule_output_args(every)
 
     duration = subparsers.add_parser(
         "duration",
@@ -255,6 +308,7 @@ def parse_args() -> argparse.Namespace:
         required=True,
         help="Interval between captures in minutes.",
     )
+    add_schedule_output_args(duration)
 
     centered = subparsers.add_parser(
         "centered",
@@ -264,7 +318,7 @@ def parse_args() -> argparse.Namespace:
         "--center",
         required=True,
         help="Center time, HH:MM."
-        )
+    )
     centered.add_argument(
         "--before-minutes",
         type=int,
@@ -283,6 +337,7 @@ def parse_args() -> argparse.Namespace:
         required=True,
         help="Interval between captures in minutes.",
     )
+    add_schedule_output_args(centered)
 
     return parser.parse_args()
 
@@ -312,7 +367,17 @@ def main() -> None:
     else:
         raise ValueError(f"Unknown command: {args.command}")
 
-    print(times)
+    write_schedule(
+        output=args.output,
+        start_date=args.start_date,
+        num_days=args.num_days,
+        times=times,
+        overwrite=args.overwrite,
+    )
+
+    print(f"Wrote schedule: {args.output}")
+    print(f"Daily capture times: {len(times)}")
+    print(f"Total scheduled captures: {len(times) * args.num_days}")
 
 
 if __name__ == "__main__":
