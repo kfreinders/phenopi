@@ -176,6 +176,134 @@ The directory structure is kept simple so that files can be inspected manually
 and processed automatically. In general, raw images are stored in
 \texttt{captures/}, while analysis outputs are written to \texttt{results/}.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Section 3
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Installation}
+
+\subsection{System Requirements}
+
+The image acquisition subsystem requires a Raspberry Pi 4 or newer, a Raspberry
+Pi Camera Module v3, Raspberry Pi OS Bookworm or newer, and Picamera2. The
+analysis software has been developed under Linux. It may also work on other
+platforms supported by the required Python libraries, but Linux is the
+recommended environment.
+
+\subsection{Installation}
+
+\subsection{Installation for Automated Acquisition}
+
+For automated image acquisition, Phenopi should be installed as a systemd
+service on the Raspberry Pi. This allows the scheduler to start automatically
+after boot and continue running in the background.
+
+The provided service file is located at:
+
+\begin{verbatim}
+deploy/phenopi-scheduler.service
+\end{verbatim}
+
+The project repository should be located at \texttt{/home/phenopi/phenotyping},
+and the Python virtual environment should be located at
+\texttt{/home/phenopi/venvs/phenopi}.
+
+Create a dedicated user for running the scheduler.
+
+\begin{verbatim}
+sudo useradd -m -s /bin/bash phenopi
+\end{verbatim}
+
+Create the virtual environment directory.
+
+\begin{verbatim}
+sudo -u phenopi mkdir -p /home/phenopi/venvs
+\end{verbatim}
+
+Clone the Phenopi repository into the expected location.
+
+\begin{verbatim}
+sudo -u phenopi git clone https://github.com/kfreinders/phenopi.git 
+/home/phenopi/phenotyping
+\end{verbatim}
+
+Install Picamera2 using the Raspberry Pi package manager.
+
+\begin{verbatim}
+sudo apt update
+sudo apt install -y python3-picamera2
+\end{verbatim}
+
+Create a Python virtual environment. On Raspberry Pi OS, using
+\texttt{--system-site-packages} makes packages installed through \texttt{apt},
+such as Picamera2, available inside the environment.
+
+\begin{verbatim}
+sudo -u phenopi python3 -m venv --system-site-packages 
+/home/phenopi/venvs/phenopi
+\end{verbatim}
+
+Install the required Python packages.
+
+\begin{verbatim}
+sudo -u phenopi /home/phenopi/venvs/phenopi/bin/pip install -r 
+/home/phenopi/phenotyping/requirements.txt
+\end{verbatim}
+
+Before installing the service, check that the scheduler command runs correctly.
+
+\begin{verbatim}
+cd /home/phenopi/phenotyping
+sudo -u phenopi /home/phenopi/venvs/phenopi/bin/python 
+-m scripts.scheduling.run_scheduler --help
+\end{verbatim}
+
+If the help page is displayed, copy the service file to the systemd service
+directory.
+
+\begin{verbatim}
+sudo cp /home/phenopi/phenotyping/deploy/phenopi-scheduler.service 
+/etc/systemd/system/phenopi-scheduler.service
+\end{verbatim}
+
+Reload systemd, enable the service, and start it.
+
+\begin{verbatim}
+sudo systemctl daemon-reload
+sudo systemctl enable phenopi-scheduler.service
+sudo systemctl start phenopi-scheduler.service
+\end{verbatim}
+
+Check whether the service is running.
+
+\begin{verbatim}
+sudo systemctl status phenopi-scheduler.service
+\end{verbatim}
+
+The service logs can be viewed using \texttt{journalctl}.
+
+\begin{verbatim}
+sudo journalctl -u phenopi-scheduler.service -f
+\end{verbatim}
+
+To stop the scheduler manually, run:
+
+\begin{verbatim}
+sudo systemctl stop phenopi-scheduler.service
+\end{verbatim}
+
+To restart the scheduler after changing the configuration or updating the code,
+run:
+
+\begin{verbatim}
+sudo systemctl restart phenopi-scheduler.service
+\end{verbatim}
+
+If the service fails to start, first check that the paths in
+\texttt{deploy/phenopi-scheduler.service} match the actual installation paths.
+In particular, verify \texttt{WorkingDirectory}, \texttt{ExecStart}, and the
+permissions of the configured output directories.
+
 %-------------------------------------------------------------------------------
 %    REFERENCES
 %-------------------------------------------------------------------------------
