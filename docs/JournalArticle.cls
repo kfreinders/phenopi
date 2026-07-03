@@ -47,7 +47,7 @@
 ]{geometry}
 
 % Font settings
-\usepackage{microtype} % Improve text spacing
+\usepackage[final,nopatch=footnote]{microtype} % Improve text spacing
 \linespread{1.05} % Slightly increase line spacing
 
 \ifluatex
