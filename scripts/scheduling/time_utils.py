@@ -1,36 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta
-
-
-def parse_hhmm(value: str) -> time:
-    """
-    Parse a time string in "HH:MM" format.
-
-    This helper converts a 24-hour clock string such as "09:30" into a
-    `datetime.time` object.
-
-    Parameters
-    ----------
-    value : str
-        Time string in 24-hour "HH:MM" format.
-
-    Returns
-    -------
-    time
-        Parsed time value.
-
-    Raises
-    ------
-    ValueError
-        If `value` is not a valid time string in "HH:MM" format.
-    """
-    try:
-        return datetime.strptime(value, "%H:%M").time()
-    except ValueError as exc:
-        raise ValueError(
-            f"Invalid time format '{value}', expected HH:MM"
-        ) from exc
+from datetime import datetime, timedelta
 
 
 def every_n_minutes(start: str, end: str, step_minutes: int) -> list[str]:
