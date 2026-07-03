@@ -43,43 +43,37 @@
 \subsection{Purpose}
 
 Phenopi is an image-based plant phenotyping system for controlled-environment
-experiments. It combines automated image acquisition, image analysis, quality
-control, and growth analysis in a modular workflow. The system was developed as
-a low-cost alternative to commercial phenotyping platforms. It is intended for
-experiments where plants are imaged repeatedly over time and quantitative
-traits, such as canopy area and growth rate, are extracted from RGB images.
-Phenopi can be run on inexpensive hardware such as Raspberry Pi camera setups.
-The software is currently command-line based, but a GUI is currently on the
-TODO list.
+experiments. It is designed for repeated RGB imaging of plants and for
+extracting quantitative traits such as canopy area and growth over time. The
+system combines automated image acquisition, image analysis, quality control,
+and growth analysis in a modular workflow. It was developed as a low-cost
+alternative to commercial phenotyping platforms and can run on inexpensive
+hardware such as a Raspberry Pi camera setup. Users do not need extensive
+programming experience, but Phenopi is currently command-line based and assumes
+basic familiarity with running terminal commands and working with text-based
+configuration files.
 
-\subsection{Scope}
+\subsection{What Phenopi Does}
 
-Phenopi currently supports the workflow from image acquisition to trait
-extraction and growth analysis. This includes scheduled image acquisition,
-experiment logging, canopy segmentation, extraction of morphological traits,
-colour-space diagnostics and growth curve analysis. Additional machine-learning
-modules for image-based trait analysis are under development.
+Phenopi supports a complete basic workflow for image-based plant phenotyping.
+During an experiment, a Raspberry Pi captures images at scheduled time points
+and stores them using timestamped filenames. After acquisition, the analysis
+pipeline processes the images, segments plant canopies, extracts traits, and
+writes the results to output tables. The system also produces diagnostic
+outputs that help users check image quality and segmentation accuracy before
+interpreting the biological results. Growth analysis tools can then be used to
+summarize canopy development over time.
 
-\subsection{Target Audience}
+\subsection{What This Manual Covers}
 
-This manual is intended for researchers conducting controlled-environment plant
-experiments. Extensive programming experience is not required, but users should
-be comfortable opening a terminal, running commands, and navigating experiment
-folders. The manual focuses on practical use: setting up an experiment,
-acquiring images, running the analysis, checking the results, and interpreting
-the main output files.
-
-\subsection{Software Philosophy}
-
-Phenopi is a collection of small tools rather than a single large application.
-Each tool performs one part of the workflow and communicates through defined
-input and output files. This structure makes the workflow easier to inspect,
-repeat, and modify. Image acquisition, segmentation, trait extraction, and
-plotting can be run separately, which helps with troubleshooting and
-reproducibility. The examples in this manual use Linux command-line syntax.
-Phenopi has primarily been developed and tested on Arch- and Debian-based Linux
-distributions and Raspberry Pi hardware, but should work on other distributions
-also.
+This manual explains how to install Phenopi for automated image acquisition,
+prepare an experiment, run the scheduler, process captured images, inspect
+quality-control outputs, and perform basic growth analysis. The manual focuses
+on practical use. It describes the files users need to edit, the commands they
+need to run, the outputs they should expect, and the checks they should perform
+when something goes wrong. Detailed implementation notes are kept to a minimum.
+Where internal behaviour is described, it is included only when it helps users
+understand how to operate or troubleshoot the system.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Section 2
