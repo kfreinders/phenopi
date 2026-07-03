@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 from datetime import datetime, timedelta
 
 
@@ -215,3 +216,104 @@ def combine_times(*time_lists: list[str]) -> list[str]:
     ['09:00', '09:30', '10:00']
     """
     return sorted({t for lst in time_lists for t in lst})
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Generate Phenopi capture times and print them to stdout."
+    )
+
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    every = subparsers.add_parser(
+        "every",
+        help="Generate times between a start and end time.",
+    )
+    every.add_argument("--start", required=True, help="Start time, HH:MM.")
+    every.add_argument("--end", required=True, help="End time, HH:MM.")
+    every.add_argument(
+        "--step-minutes",
+        type=int,
+        required=True,
+        help="Interval between captures in minutes.",
+    )
+
+    duration = subparsers.add_parser(
+        "duration",
+        help="Generate times from a start time for a fixed duration.",
+    )
+    duration.add_argument("--start", required=True, help="Start time, HH:MM.")
+    duration.add_argument(
+        "--duration-minutes",
+        type=int,
+        required=True,
+        help="Total duration in minutes.",
+    )
+    duration.add_argument(
+        "--step-minutes",
+        type=int,
+        required=True,
+        help="Interval between captures in minutes.",
+    )
+
+    centered = subparsers.add_parser(
+        "centered",
+        help="Generate times around a central time point.",
+    )
+    centered.add_argument(
+        "--center",
+        required=True,
+        help="Center time, HH:MM."
+        )
+    centered.add_argument(
+        "--before-minutes",
+        type=int,
+        required=True,
+        help="Minutes before center to include.",
+    )
+    centered.add_argument(
+        "--after-minutes",
+        type=int,
+        required=True,
+        help="Minutes after center to include.",
+    )
+    centered.add_argument(
+        "--step-minutes",
+        type=int,
+        required=True,
+        help="Interval between captures in minutes.",
+    )
+
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+
+    if args.command == "every":
+        times = every_n_minutes(
+            start=args.start,
+            end=args.end,
+            step_minutes=args.step_minutes,
+        )
+    elif args.command == "duration":
+        times = every_n_minutes_for_duration(
+            start=args.start,
+            duration_minutes=args.duration_minutes,
+            step_minutes=args.step_minutes,
+        )
+    elif args.command == "centered":
+        times = centered_time_range(
+            center=args.center,
+            before_minutes=args.before_minutes,
+            after_minutes=args.after_minutes,
+            step_minutes=args.step_minutes,
+        )
+    else:
+        raise ValueError(f"Unknown command: {args.command}")
+
+    print(times)
+
+
+if __name__ == "__main__":
+    main()
