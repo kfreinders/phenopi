@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
+import sys
 from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.blocking import BlockingScheduler
+
+from .schedule_validation import (
+    ScheduleValidationError,
+    validate_unique_values,
+)
 
 
 CAPTURE_JOB_PREFIX = "capture:"
@@ -44,6 +51,34 @@ def parse_hhmm(value: str) -> time:
         ) from exc
 
 
+def schedule_content_hash(path: Path) -> str:
+    """
+    Compute a SHA-256 hash of a schedule file.
+
+    The hash is based on the file contents, not on metadata such as filename,
+    modification time, or file size. This makes it suitable for detecting
+    whether the actual schedule definition has changed.
+
+    Parameters
+    ----------
+    path : Path
+        Path to the schedule file.
+
+    Returns
+    -------
+    str
+        Hexadecimal SHA-256 digest of the file contents.
+
+    Raises
+    ------
+    FileNotFoundError
+        If `path` does not exist.
+    OSError
+        If the file cannot be read.
+    """
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def load_schedule(path: Path) -> dict:
     return json.loads(path.read_text())
 
@@ -70,6 +105,13 @@ def expand_schedule(cfg: dict, tz: ZoneInfo) -> list[datetime]:
             base = datetime.combine(current_day, capture_time, tzinfo=tz)
             for rep in range(replicates):
                 jobs.append(base + timedelta(seconds=rep * replicate_interval))
+
+    validate_unique_values(
+        jobs,
+        label="expanded schedule",
+        value_name="capture time",
+        formatter=lambda dt: dt.strftime("%Y-%m-%d %H:%M:%S%z"),
+    )
 
     return sorted(jobs)
 
@@ -101,8 +143,15 @@ def main() -> None:
     args = parser.parse_args()
 
     tz = ZoneInfo(args.timezone)
-    cfg = load_schedule(args.schedule)
-    run_times = expand_schedule(cfg, tz)
+
+    try:
+        cfg = load_schedule(args.schedule)
+        run_times = expand_schedule(cfg, tz)
+    except (
+        ScheduleValidationError, ValueError, FileNotFoundError, OSError
+    ) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        raise SystemExit(2) from None
 
     scheduler = BlockingScheduler(timezone=tz)
 

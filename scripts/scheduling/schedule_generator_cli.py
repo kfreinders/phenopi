@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 import sys
 
+from .schedule_validation import validate_unique_values
+
 
 def every_n_minutes(start: str, end: str, step_minutes: int) -> list[str]:
     """
@@ -227,45 +229,11 @@ def validate_unique_expanded_times(
             )
             expanded.append(capture_dt.strftime("%H:%M:%S"))
 
-    if len(expanded) == len(set(expanded)):
-        return
-
-    seen: set[str] = set()
-    duplicates: set[str] = set()
-
-    for capture_time_str in expanded:
-        if capture_time_str in seen:
-            duplicates.add(capture_time_str)
-        seen.add(capture_time_str)
-
-    duplicate_text = format_duplicate_times(duplicates)
-    duplicate_count = len(duplicates)
-
-    raise ValueError(
-        f"schedule contains {duplicate_count} duplicate capture time(s). "
-        f"First duplicates: {duplicate_text}. This usually means "
-        "that replicate captures overlap with other scheduled captures. "
-        "Increase --step-minutes, reduce --replicates, or reduce "
-        "--replicate-interval-seconds."
+    validate_unique_values(
+        expanded,
+        label="expanded schedule",
+        value_name="capture time",
     )
-
-
-def format_duplicate_times(
-    duplicates: set[str],
-    max_display: int = 5,
-) -> str:
-    """
-    Format duplicate capture times for a user-facing error message.
-    """
-    sorted_duplicates = sorted(duplicates)
-    shown = sorted_duplicates[:max_display]
-    duplicate_text = ", ".join(shown)
-
-    remaining = len(sorted_duplicates) - len(shown)
-    if remaining > 0:
-        duplicate_text += f", ... ({remaining} more)"
-
-    return duplicate_text
 
 
 def add_schedule_output_args(parser: argparse.ArgumentParser) -> None:
