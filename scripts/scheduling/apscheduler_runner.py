@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 
+from .config import SchedulerConfig, default_scheduler_config
 from .schedule_validation import (
     ScheduleValidationError,
     validate_unique_values,
@@ -116,57 +117,76 @@ def expand_schedule(cfg: dict, tz: ZoneInfo) -> list[datetime]:
     return sorted(jobs)
 
 
-def run_capture(
-    python_bin: str,
-    capture_script: str,
-    output_dir: Path
-) -> bool:
+def run_capture(config: SchedulerConfig) -> None:
     """
     Execute the capture script as a subprocess.
 
-    This function invokes the configured Python interpreter to run the
-    capture script once and returns whether execution was successful.
+    This function invokes the configured Python interpreter to run the capture
+    script once. A non-zero exit code raises `CalledProcessError`, allowing
+    APScheduler to mark the job as failed.
 
     Parameters
     ----------
-    python_bin : str
-        Path to the Python executable used to run the capture script.
-    capture_script : str
-        Path to the capture script to execute.
-    output_dir : Path
-        Path to save the capture script output to.
+    config : SchedulerConfig
+        Scheduler configuration containing the Python interpreter, capture
+        script, and output directory.
 
-    Returns
-    -------
-    bool
-        True if the capture script exited with return code 0, False otherwise.
+    Raises
+    ------
+    subprocess.CalledProcessError
+        If the capture script exits with a non-zero return code.
     """
-    result = subprocess.run(
+    subprocess.run(
         [
-            python_bin,
-            capture_script,
+            str(config.python_bin),
+            str(config.capture_script),
             "--output-dir",
-            str(output_dir),
+            str(config.output_dir),
         ],
-        check=False
+        check=True,
     )
-    return result.returncode == 0
+
+
+def config_from_args(args: argparse.Namespace) -> SchedulerConfig:
+    default = default_scheduler_config()
+
+    return SchedulerConfig(
+        schedule_path=args.schedule or default.schedule_path,
+        state_path=default.state_path,
+        capture_script=args.capture_script or default.capture_script,
+        python_bin=args.python_bin or default.python_bin,
+        output_dir=args.output_dir or default.output_dir,
+        misfire_grace=(
+            timedelta(seconds=args.misfire_grace_seconds)
+            if args.misfire_grace_seconds is not None
+            else default.misfire_grace
+        ),
+        reload_interval=(
+            timedelta(seconds=args.reload_interval_seconds)
+            if args.reload_interval_seconds is not None
+            else default.reload_interval
+        ),
+        tz=ZoneInfo(args.timezone) if args.timezone else default.tz,
+    )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--schedule", type=Path, required=True)
-    parser.add_argument("--capture-script", type=str, required=True)
-    parser.add_argument("--python-bin", type=str, default="python")
-    parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--timezone", default="Europe/Amsterdam")
-    parser.add_argument("--misfire-grace-seconds", type=int, default=600)
-    args = parser.parse_args()
+    parser.add_argument("--schedule", type=Path)
+    parser.add_argument("--capture-script", type=Path)
+    parser.add_argument("--python-bin", type=Path)
+    parser.add_argument("--output-dir", type=Path)
+    parser.add_argument("--timezone")
+    parser.add_argument("--misfire-grace-seconds", type=int)
+    parser.add_argument("--reload-interval-seconds", type=float)
 
-    tz = ZoneInfo(args.timezone)
+    args = parser.parse_args()
+    config = config_from_args(args)
+
+    tz = config.tz
 
     try:
-        cfg = load_schedule(args.schedule)
+        cfg = load_schedule(config.schedule_path)
         run_times = expand_schedule(cfg, tz)
     except (
         ScheduleValidationError, ValueError, FileNotFoundError, OSError
@@ -179,21 +199,22 @@ def main() -> None:
     now = datetime.now(tz)
     scheduled = 0
 
-    for i, run_time in enumerate(run_times):
-        if run_time < now - timedelta(seconds=args.misfire_grace_seconds):
+    for _, run_time in enumerate(run_times):
+        if run_time < now - config.misfire_grace:
             continue
 
         scheduler.add_job(
             run_capture,
             trigger="date",
             run_date=run_time,
-            args=[args.python_bin, args.capture_script, args.output_dir],
-            id=f"capture_{i}_{run_time.isoformat()}",
-            misfire_grace_time=args.misfire_grace_seconds,
+            args=[config],
+            id=f"{CAPTURE_JOB_PREFIX}{run_time.isoformat()}",
+            misfire_grace_time=int(config.misfire_grace.total_seconds()),
             max_instances=1,
         )
         scheduled += 1
 
+    print(f"Loaded schedule: {config.schedule_path}")
     print(f"Scheduled {scheduled} capture job(s)")
     print("Starting scheduler")
 
