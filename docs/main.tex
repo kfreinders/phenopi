@@ -1,0 +1,59 @@
+%-------------------------------------------------------------------------------
+%    DOCUMENT CONFIGURATION
+%-------------------------------------------------------------------------------
+
+\documentclass[
+    a4paper, % Paper size
+    11pt, % Default font size
+    twoside, % Change headers and footers between even and odd pages
+]{JournalArticle} % Use the custom JournalArticle class
+
+\raggedbottom%
+
+\begin{document}
+
+%-------------------------------------------------------------------------------
+%    TITLE SECTION
+%-------------------------------------------------------------------------------
+
+\include{frontpage}
+
+\newpage
+
+%-------------------------------------------------------------------------------
+%    TABLE OF CONTENTS
+%-------------------------------------------------------------------------------
+
+\parskip=0em
+\renewcommand{\contentsname}{\centering \Large Contents}
+\tableofcontents
+\parskip=1em
+\newpage
+
+%-------------------------------------------------------------------------------
+%    ARTICLE CONTENTS
+%-------------------------------------------------------------------------------
+
+\input{chapters/01_introduction}
+\input{chapters/02_system_layout}
+\input{chapters/03_installation}
+\input{chapters/04_operation}
+\input{chapters/05_canopy_analysis}
+\input{chapters/06_plotting_growth_curves}
+
+%-------------------------------------------------------------------------------
+%    REFERENCES
+%-------------------------------------------------------------------------------
+
+% \newpage
+% \printbibliography%
+
+%-------------------------------------------------------------------------------
+%    SUPPLEMENTAL
+%-------------------------------------------------------------------------------
+
+% \clearpage
+% \input{startapp}
+% \subsection{Supplemental figures and tables}
+
+\end{document}

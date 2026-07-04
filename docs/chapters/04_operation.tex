@@ -1,0 +1,167 @@
+\section{Operation}
+
+This section describes the standard operation of automated image acquisition.
+In normal use, the scheduler runs continuously as a background service on the
+Raspberry Pi. Users control acquisition by creating or updating the schedule
+file. The scheduler can be started before a schedule exists. If no schedule
+file is present, it remains active and waits until a valid schedule is created.
+During operation, it periodically checks whether the schedule file has changed.
+If a valid new schedule is detected, the scheduler reloads and starts using the
+new schedule.
+
+\subsection{Schedule File}
+
+The acquisition schedule is stored in:
+
+\begin{verbatim}
+/home/phenopi/phenotyping/runtime/schedule.json
+\end{verbatim}
+
+This file defines the experiment start date, the number of experiment days, the
+daily capture times, and optional technical replicate settings. A typical
+schedule file is shown below.
+
+\begin{verbatim}
+{
+  "start_date": "2026-05-01",
+  "num_days": 14,
+  "replicates": 3,
+  "replicate_interval_seconds": 30
+  "times": [
+    "08:00",
+    "08:30",
+    "09:00",
+    "09:30",
+    "10:00"
+  ],
+}
+\end{verbatim}
+
+The \texttt{start\_date} field defines the first day of imaging. The
+\texttt{num\_days} field defines the number of experiment days. The
+\texttt{times} field defines the daily imaging time points in 24-hour
+\texttt{HH:MM} format. The \texttt{replicates} field defines how many images
+are acquired at each time point. The \texttt{replicate\_interval\_seconds}
+field defines the delay between these replicate captures. For example, with
+three replicates and a 30-second interval, captures scheduled at \texttt{08:00}
+are taken at approximately \texttt{08:00:00}, \texttt{08:00:30}, and
+\texttt{08:01:00}.
+
+\subsection{Generating a Schedule}
+
+Schedules can be written manually, but it is usually safer and more convenient
+to generate them using the schedule generator. The generator creates a valid
+\texttt{schedule.json} file and checks for overlapping capture times. The
+schedule generator provides three ways to define daily capture times. The
+\texttt{every} mode generates times between a start and end time, using a fixed
+interval. This is useful for regular imaging throughout a photoperiod. The
+\texttt{duration} mode generates times from a start time for a fixed duration.
+This is useful when the length of the imaging window is easier to define than
+the exact end time. The \texttt{centered} mode generates times around a central
+time point. This is useful for imaging before and after a specific event, such
+as treatment application.
+
+For example, the following command creates a 14-day schedule with imaging every
+30 minutes between 08:00 and 19:30. At each time point, three replicate images
+are captured 30 seconds apart.
+
+\begin{verbatim}
+python -m scripts.scheduling.schedule_generator_cli every \
+  --start 08:00 \
+  --end 19:30 \
+  --step-minutes 30 \
+  --start-date 2026-05-01 \
+  --num-days 14 \
+  --replicates 3 \
+  --replicate-interval-seconds 30 \
+  --output runtime/schedule.json \
+  --overwrite
+\end{verbatim}
+
+The generated file should be inspected before starting a long experiment. Check
+that the start date, experiment duration, capture times, and replicate settings
+are correct.
+
+\subsection{Schedule Changes}
+
+The scheduler periodically checks whether \texttt{runtime/schedule.json} has
+changed. If the file changes and the new schedule is valid, the scheduler
+reloads and uses the new schedule. If the file is missing or invalid, the
+scheduler keeps the current schedule and reports the problem in the log. Each
+schedule is associated with a hash-based scheduler database in the runtime
+directory. This allows the scheduler to resume pending jobs after a restart
+when the schedule has not changed. If the schedule file contents change, a new
+database is used for the new schedule. Stale scheduler databases from previous
+schedules are removed automatically.
+
+\subsection{Captured Image Output}
+
+All acquired images are stored in the configured capture directory. In the default installation, this is:
+
+\begin{verbatim}
+/home/phenopi/phenotyping/captures
+\end{verbatim}
+
+Images are saved using the filename format:
+
+\begin{verbatim}
+capture_YYYYMMDD_HHMMSS.jpg
+\end{verbatim}
+
+For example:
+
+\begin{verbatim}
+capture_20260504_153945.jpg
+capture_20260504_154000.jpg
+capture_20260504_154015.jpg
+\end{verbatim}
+
+The timestamp in the filename records the acquisition time and is used by
+downstream analysis. Users should therefore avoid renaming captured images.
+
+\subsection{Monitoring an Experiment}
+
+It is recommended to inspect the first few captures of each experiment. Check
+that images are correctly exposed, focused, and contain the complete plant
+tray. During the experiment, routine monitoring usually consists of checking
+the service log, checking that new images are appearing in the capture
+directory, and checking that enough storage space remains available. Recent
+captured images can be listed with:
+
+\begin{verbatim}
+ls -lt /home/phenopi/phenotyping/captures | head
+\end{verbatim}
+
+Available storage space can be checked with:
+
+\begin{verbatim}
+df -h
+\end{verbatim}
+
+\subsection{Restarting or Stopping Acquisition}
+
+The scheduler can be restarted with:
+
+\begin{verbatim}
+sudo systemctl restart phenopi-scheduler.service
+\end{verbatim}
+
+A restart is useful after updating the code or changing service-level settings.
+If the schedule file has not changed, the scheduler resumes using the matching
+schedule database. The scheduler can be stopped with:
+
+\begin{verbatim}
+sudo systemctl stop phenopi-scheduler.service
+\end{verbatim}
+
+Stopping the scheduler prevents new captures from being started. It does not
+remove captured images.
+
+\subsection{After Experiment Completion}
+
+After the final scheduled capture has completed, the capture directory contains
+the raw image dataset for the experiment. The capture directory should be
+preserved unchanged. Downstream Phenopi analysis tools operate on these
+timestamped images and write processed outputs to separate result directories.
+Keeping the original images unchanged ensures that analyses can be repeated
+later with updated settings or newer versions of the analysis pipeline.

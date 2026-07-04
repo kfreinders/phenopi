@@ -1,0 +1,94 @@
+\section{System Layout}
+
+\subsection{Overview}
+
+Phenopi is organized as a workflow rather than as a single application. The
+main steps are image acquisition, image analysis, quality control, and growth
+analysis. Each step reads input files from the experiment directory and writes
+its own outputs, so intermediate results can be inspected before continuing. A
+typical workflow starts with an experiment schedule. The Raspberry Pi uses this
+schedule to capture images and store them in the image archive. The analysis
+scripts then process these images, extract plant traits, and write the results
+to tables. Diagnostic plots and overlays are used to check whether the images
+and segmentations are suitable for downstream analysis.
+
+\subsection{Hardware Components}
+
+The acquisition setup consists of a Raspberry Pi, a Raspberry Pi Camera Module
+v3, a fixed imaging frame, an experimental tray, and a stable light source. The
+camera is mounted above the tray to acquire top-down RGB images. The hardware
+setup should remain fixed during an experiment. Moving the camera, tray, or
+light source can change the image geometry or illumination, which may affect
+segmentation and trait extraction.
+
+\subsection{Software Components}
+
+Phenopi uses separate scripts for scheduling, image capture, image analysis,
+plotting, and growth analysis. The scheduler runs on the Raspberry Pi and
+starts capture jobs at the configured times. The capture script acquires
+individual images and saves them using timestamped filenames. The analysis
+scripts process the captured images after acquisition. They assign regions of
+interest, segment plant canopies, extract traits, and save the results.
+Plotting and growth analysis scripts use these trait tables to generate figures
+and summary files.
+
+\subsection{Directory Structure}
+
+A typical Phenopi project or experiment directory contains folders for captured
+images, runtime files, scripts, and results. The exact contents may differ
+between installations, but the main folders should remain easy to identify.
+
+\begin{forest}
+  for tree={
+    font=\ttfamily,
+    grow'=0,
+    child anchor=west,
+    parent anchor=south,
+    anchor=west,
+    calign=first,
+    edge path={
+    \noexpand\path[draw, \forestoption{edge}]
+    (!u.south west) + (7.5pt,0) |- (.child anchor)\forestoption{edge label};
+    },
+    before typesetting nodes={
+    if n=1
+    {insert before={[,phantom]}}
+    {}
+    },
+    fit=band,
+    before computing xy={l=15pt},
+  }
+  [phenopi/
+    [captures/
+      [capture\_20260508\_080000.jpg]
+      [capture\_20260508\_080030.jpg]
+      [\ldots]
+    ]
+    [deploy/
+      [phenopi-scheduler.service]
+    ]
+    [results/]
+    [runtime/
+      [completed\_jobs.json]
+      [schedule.json]
+    ]
+    [scripts/
+      [analysis/]
+      [capture/]
+      [plotting/]
+      [scheduling/]
+    ]
+  ]
+\end{forest}
+
+The most important configuration file for image acquisition is
+\texttt{runtime/schedule.json}. This file defines when images should be
+captured. The scheduler also writes its state to
+\texttt{runtime/completed\_jobs.json}, which records which captures have
+already been completed. Raw images are saved in \texttt{captures/} using
+timestamped filenames. Analysis results are saved in \texttt{results/}, usually
+as CSV files, diagnostic images, and plots. These files are the main outputs
+used for quality control and biological interpretation. The \texttt{scripts/}
+directory contains the command-line tools used for acquisition and analysis.
+The \texttt{deploy/} directory contains the systemd service file used for
+automated acquisition on the Raspberry Pi. 
