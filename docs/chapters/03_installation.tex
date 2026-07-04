@@ -1,0 +1,126 @@
+\section{Installation on the Raspberry Pi}
+
+\subsection{System Requirements}
+
+Automated image acquisition requires a Raspberry Pi 4 or newer, a Raspberry Pi
+Camera Module v3, Raspberry Pi OS Bookworm or newer, and Picamera2. The
+scheduler is installed as a systemd service, so the Raspberry Pi should be set
+up with a working network connection, correct system time, and enough storage
+space for the planned experiment.
+
+The installation below assumes that Phenopi will run under a dedicated user
+account named \texttt{phenopi}. This keeps the acquisition service separate
+from personal user accounts and makes file permissions easier to manage.
+
+\subsection{Expected Installation Layout}
+
+The provided service file assumes the following installation layout:
+
+\begin{verbatim}
+  /home/phenopi/phenotyping
+  /home/phenopi/venvs/phenopi
+\end{verbatim}
+
+The Phenopi repository is stored in \texttt{/home/phenopi/phenotyping}. The
+Python virtual environment is stored in \texttt{/home/phenopi/venvs/phenopi}.
+If different paths are used, ensure to update the paths in
+\texttt{deploy/phenopi-scheduler.service} also.
+
+\subsection{Creating the Phenopi User}
+
+Create a dedicated user for running the scheduler.
+
+\begin{verbatim}
+sudo useradd -m -s /bin/bash phenopi
+\end{verbatim}
+
+Create the directory that will contain the Python virtual environment.
+
+\begin{verbatim}
+sudo -u phenopi mkdir -p /home/phenopi/venvs
+\end{verbatim}
+
+\subsection{Installing Phenopi}
+
+Clone the Phenopi repository into the expected location.
+
+\begin{verbatim}
+sudo -u phenopi git clone https://github.com/kfreinders/phenopi.git 
+/home/phenopi/phenotyping
+\end{verbatim}
+
+Install Picamera2 using the Raspberry Pi package manager.
+
+\begin{verbatim}
+sudo apt update
+sudo apt install -y python3-picamera2
+\end{verbatim}
+
+Create the Python virtual environment. The \texttt{--system-site-packages}
+option makes packages installed through \texttt{apt}, such as Picamera2,
+available inside the virtual environment.
+
+\begin{verbatim}
+sudo -u phenopi python3 -m venv --system-site-packages 
+/home/phenopi/venvs/phenopi
+\end{verbatim}
+
+Install the Python dependencies listed by the project.
+
+\begin{verbatim}
+sudo -u phenopi /home/phenopi/venvs/phenopi/bin/pip install -r 
+/home/phenopi/phenotyping/requirements.txt
+\end{verbatim}
+
+\subsection{Checking the Scheduler Command}
+
+Before installing the service, check that the scheduler can be started from the
+virtual environment.
+
+\begin{verbatim}
+cd /home/phenopi/phenotyping
+sudo -u phenopi /home/phenopi/venvs/phenopi/bin/python \
+-m scripts.scheduling.run_scheduler --help
+\end{verbatim}
+
+A successful installation should display the command-line help page. If the
+command fails, check the repository path, virtual environment path, installed
+dependencies, and scheduler module name.
+
+\subsection{Installing the Scheduler Service}
+
+Copy the provided service file to the systemd service directory and reload
+systemd so that it detects the new service.
+
+\begin{verbatim}
+sudo cp /home/phenopi/phenotyping/deploy/phenopi-scheduler.service \
+/etc/systemd/system/phenopi-scheduler.service
+sudo systemctl daemon-reload
+\end{verbatim}
+
+Enable and start the service so that it starts automatically after boot.
+
+\begin{verbatim}
+sudo systemctl enable phenopi-scheduler.service
+sudo systemctl start phenopi-scheduler.service
+\end{verbatim}
+
+\subsection{Checking the Service}
+
+Check whether the scheduler service is running.
+
+\begin{verbatim}
+sudo systemctl status phenopi-scheduler.service
+\end{verbatim}
+
+The service logs can be viewed with \texttt{journalctl}.
+
+\begin{verbatim}
+sudo journalctl -u phenopi-scheduler.service -f
+\end{verbatim}
+
+If the service fails to start, first check that the paths in
+\texttt{deploy/phenopi-scheduler.service} match the installation paths. In
+particular, verify \texttt{WorkingDirectory}, \texttt{ExecStart}, and whether
+the \texttt{phenopi} user has permission to read the repository and write to
+the configured output directories.
