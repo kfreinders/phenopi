@@ -1,0 +1,129 @@
+\section{Operation}
+
+This chapter describes the standard operations for running automated image
+collection. The goal of normal operation is to define an imaging schedule,
+allow the system to automatically acquire images, and prepare the resulting
+image dataset for downstream analysis.
+
+During routine experiments, users do not directly interact with the camera.
+Instead, experiments are controlled through a schedule file that defines when
+images should be captured. The Phenopi scheduler runs continuously in the
+background and executes the required captures automatically.
+
+\subsection{Creating an experiment schedule}
+
+Phenopi experiments are defined using a schedule configuration file. This file
+describes the duration of the experiment and the times at which images should be
+captured.
+
+An example schedule configuration is shown below.
+
+\begin{verbatim}
+{
+    "start_date": "2026-05-01",
+    "num_days": 14,
+    "capture_times": [
+        "08:00",
+        "08:30",
+        "09:00",
+        "09:30",
+        "10:00"
+    ]
+}
+\end{verbatim}
+
+The \texttt{start\_date} field defines the first day of imaging. The
+\texttt{num\_days} field determines the total experiment duration. The
+\texttt{capture\_times} field specifies the time points at which images are
+acquired each day.
+
+Capture times should normally be restricted to the photoperiod of the plants.
+For example, when plants are grown under a 08:00--20:00 light cycle, images
+should only be scheduled during this period to avoid interrupting the dark
+period.
+
+\subsection{Generating the acquisition schedule}
+
+Before an experiment starts, the schedule builder converts the experiment
+configuration into a complete list of individual capture jobs.
+
+Each scheduled capture receives an exact timestamp. This generated schedule
+represents the complete experimental acquisition protocol and remains fixed
+during the experiment.
+
+This approach ensures that image acquisition is reproducible and that the exact
+planned imaging times are known before the experiment begins.
+
+\subsection{Running an experiment}
+
+Once the acquisition service is active and a valid schedule has been created,
+no further user interaction is required.
+
+The scheduler continuously checks the current time against the experiment
+schedule. When a capture time is reached, the scheduler starts a separate
+camera process, acquires the image, saves the result, and records that the job
+has been completed.
+
+Each capture is independent. The camera is initialized, used for one image, and
+then closed again. This reduces the risk of camera instability during
+experiments lasting multiple days or weeks.
+
+The scheduler keeps track of completed captures using a persistent state file.
+If the Raspberry Pi restarts, previously completed images are not repeated and
+the experiment continues from the remaining scheduled captures.
+
+\subsection{Captured image output}
+
+All acquired images are stored in the configured capture directory.
+
+Images are saved using the filename format:
+
+\begin{verbatim}
+capture_YYYYMMDD_HHMMSS.jpg
+\end{verbatim}
+
+For example:
+
+\begin{verbatim}
+capture_20260504_153945.jpg
+capture_20260504_154000.jpg
+capture_20260504_154015.jpg
+\end{verbatim}
+
+The timestamp contained in the filename represents the acquisition time and is
+used automatically by the downstream analysis pipeline. Users should therefore
+avoid renaming captured images.
+
+Multiple images can be acquired at each time point. These technical replicate
+captures allow measurement repeatability to be quantified and help distinguish
+true biological changes from image acquisition noise.
+
+\subsection{Monitoring an active experiment}
+
+During an experiment, the scheduler log can be inspected to verify normal
+operation.
+
+The service log can be viewed using:
+
+\begin{verbatim}
+journalctl -u phenopi-scheduler -f
+\end{verbatim}
+
+The log reports scheduled captures, successful acquisitions, and any errors
+encountered during operation.
+
+It is recommended to verify the first few captures of every experiment by
+checking that images are correctly exposed, focused, and contain the complete
+plant tray.
+
+\subsection{After experiment completion}
+
+After the final scheduled capture has completed, the image directory represents
+the raw dataset for the experiment.
+
+The capture directory should be preserved unchanged. All downstream Phenopi
+analysis tools operate directly on these timestamped images and write processed
+outputs to separate results directories.
+
+Keeping the original images unchanged ensures that analyses can always be
+repeated with updated parameters or newer versions of the analysis pipeline.

@@ -1,0 +1,36 @@
+\section{Introduction}
+
+\subsection{Purpose}
+
+Phenopi is an image-based plant phenotyping system for controlled-environment
+experiments. It is designed for repeated RGB imaging of plants and for
+extracting quantitative traits such as canopy area and growth over time. The
+system combines automated image acquisition, image analysis, quality control,
+and growth analysis in a modular workflow. It was developed as a low-cost
+alternative to commercial phenotyping platforms and can run on inexpensive
+hardware such as a Raspberry Pi camera setup. Users do not need extensive
+programming experience, but Phenopi is currently command-line based and assumes
+basic familiarity with running terminal commands and working with text-based
+configuration files.
+
+\subsection{What Phenopi Does}
+
+Phenopi supports a complete basic workflow for image-based plant phenotyping.
+During an experiment, a Raspberry Pi captures images at scheduled time points
+and stores them using timestamped filenames. After acquisition, the analysis
+pipeline processes the images, segments plant canopies, extracts traits, and
+writes the results to output tables. The system also produces diagnostic
+outputs that help users check image quality and segmentation accuracy before
+interpreting the biological results. Growth analysis tools can then be used to
+summarize canopy development over time.
+
+\subsection{What This Manual Covers}
+
+This manual explains how to install Phenopi for automated image acquisition,
+prepare an experiment, run the scheduler, process captured images, inspect
+quality-control outputs, and perform basic growth analysis. The manual focuses
+on practical use. It describes the files users need to edit, the commands they
+need to run, the outputs they should expect, and the checks they should perform
+when something goes wrong. Detailed implementation notes are kept to a minimum.
+Where internal behaviour is described, it is included only when it helps users
+understand how to operate or troubleshoot the system.
