@@ -120,16 +120,37 @@ def run_capture(
     python_bin: str,
     capture_script: str,
     output_dir: Path
-) -> None:
-    subprocess.run(
+) -> bool:
+    """
+    Execute the capture script as a subprocess.
+
+    This function invokes the configured Python interpreter to run the
+    capture script once and returns whether execution was successful.
+
+    Parameters
+    ----------
+    python_bin : str
+        Path to the Python executable used to run the capture script.
+    capture_script : str
+        Path to the capture script to execute.
+    output_dir : Path
+        Path to save the capture script output to.
+
+    Returns
+    -------
+    bool
+        True if the capture script exited with return code 0, False otherwise.
+    """
+    result = subprocess.run(
         [
             python_bin,
             capture_script,
             "--output-dir",
             str(output_dir),
         ],
-        check=True,
+        check=False
     )
+    return result.returncode == 0
 
 
 def main() -> None:
