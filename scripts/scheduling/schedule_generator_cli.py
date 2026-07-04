@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timedelta
-from pathlib import Path
 import json
+from pathlib import Path
+import sys
 
 
 def every_n_minutes(start: str, end: str, step_minutes: int) -> list[str]:
@@ -220,6 +221,83 @@ def combine_times(*time_lists: list[str]) -> list[str]:
     return sorted({t for lst in time_lists for t in lst})
 
 
+def validate_unique_expanded_times(
+    times: list[str],
+    replicates: int,
+    replicate_interval_seconds: int,
+) -> None:
+    """
+    Check that the expanded daily capture schedule contains no duplicates.
+
+    The check expands each base time according to the replicate settings and
+    verifies that no two captures occur at the same clock time.
+
+    Parameters
+    ----------
+    times : list[str]
+        Base daily capture times in "HH:MM" format.
+    replicates : int
+        Number of captures per base time.
+    replicate_interval_seconds : int
+        Interval between repeated captures, in seconds.
+
+    Raises
+    ------
+    ValueError
+        If the expanded daily schedule contains duplicate capture times.
+    """
+    expanded: list[str] = []
+
+    for time_str in times:
+        base = datetime.strptime(time_str, "%H:%M")
+
+        for rep in range(replicates):
+            capture_dt = base + timedelta(
+                seconds=rep * replicate_interval_seconds
+            )
+            expanded.append(capture_dt.strftime("%H:%M:%S"))
+
+    if len(expanded) == len(set(expanded)):
+        return
+
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+
+    for capture_time_str in expanded:
+        if capture_time_str in seen:
+            duplicates.add(capture_time_str)
+        seen.add(capture_time_str)
+
+    duplicate_text = format_duplicate_times(duplicates)
+    duplicate_count = len(duplicates)
+
+    raise ValueError(
+        f"schedule contains {duplicate_count} duplicate capture time(s). "
+        f"First duplicates: {duplicate_text}. This usually means "
+        "that replicate captures overlap with other scheduled captures. "
+        "Increase --step-minutes, reduce --replicates, or reduce "
+        "--replicate-interval-seconds."
+    )
+
+
+def format_duplicate_times(
+    duplicates: set[str],
+    max_display: int = 5,
+) -> str:
+    """
+    Format duplicate capture times for a user-facing error message.
+    """
+    sorted_duplicates = sorted(duplicates)
+    shown = sorted_duplicates[:max_display]
+    duplicate_text = ", ".join(shown)
+
+    remaining = len(sorted_duplicates) - len(shown)
+    if remaining > 0:
+        duplicate_text += f", ... ({remaining} more)"
+
+    return duplicate_text
+
+
 def add_schedule_output_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--start-date",
@@ -231,6 +309,18 @@ def add_schedule_output_args(parser: argparse.ArgumentParser) -> None:
         type=int,
         required=True,
         help="Number of experiment days.",
+    )
+    parser.add_argument(
+        "--replicates",
+        type=int,
+        default=1,
+        help="Number of repeated captures per scheduled time point.",
+    )
+    parser.add_argument(
+        "--replicate-interval-seconds",
+        type=int,
+        default=0,
+        help="Interval between repeated captures, in seconds.",
     )
     parser.add_argument(
         "--output",
@@ -250,10 +340,18 @@ def write_schedule(
     start_date: str,
     num_days: int,
     times: list[str],
+    replicates: int = 1,
+    replicate_interval_seconds: int = 0,
     overwrite: bool = False,
 ) -> None:
     if num_days <= 0:
         raise ValueError("--num-days must be > 0")
+
+    validate_unique_expanded_times(
+        times=times,
+        replicates=replicates,
+        replicate_interval_seconds=replicate_interval_seconds,
+    )
 
     if output.exists() and not overwrite:
         raise FileExistsError(
@@ -263,6 +361,8 @@ def write_schedule(
     schedule = {
         "start_date": start_date,
         "num_days": num_days,
+        "replicates": replicates,
+        "replicate_interval_seconds": replicate_interval_seconds,
         "times": times,
     }
 
@@ -345,39 +445,52 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    if args.command == "every":
-        times = every_n_minutes(
-            start=args.start,
-            end=args.end,
-            step_minutes=args.step_minutes,
-        )
-    elif args.command == "duration":
-        times = every_n_minutes_for_duration(
-            start=args.start,
-            duration_minutes=args.duration_minutes,
-            step_minutes=args.step_minutes,
-        )
-    elif args.command == "centered":
-        times = centered_time_range(
-            center=args.center,
-            before_minutes=args.before_minutes,
-            after_minutes=args.after_minutes,
-            step_minutes=args.step_minutes,
-        )
-    else:
-        raise ValueError(f"Unknown command: {args.command}")
+    try:
+        if args.command == "every":
+            times = every_n_minutes(
+                start=args.start,
+                end=args.end,
+                step_minutes=args.step_minutes,
+            )
+        elif args.command == "duration":
+            times = every_n_minutes_for_duration(
+                start=args.start,
+                duration_minutes=args.duration_minutes,
+                step_minutes=args.step_minutes,
+            )
+        elif args.command == "centered":
+            times = centered_time_range(
+                center=args.center,
+                before_minutes=args.before_minutes,
+                after_minutes=args.after_minutes,
+                step_minutes=args.step_minutes,
+            )
+        else:
+            raise ValueError(f"Unknown command: {args.command}")
 
-    write_schedule(
-        output=args.output,
-        start_date=args.start_date,
-        num_days=args.num_days,
-        times=times,
-        overwrite=args.overwrite,
-    )
+        write_schedule(
+            output=args.output,
+            start_date=args.start_date,
+            num_days=args.num_days,
+            times=times,
+            replicates=args.replicates,
+            replicate_interval_seconds=args.replicate_interval_seconds,
+            overwrite=args.overwrite,
+        )
+
+    except (ValueError, FileExistsError, OSError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        raise SystemExit(2) from None
+
+    daily_time_points = len(times)
+    daily_captures = daily_time_points * args.replicates
+    total_captures = daily_captures * args.num_days
 
     print(f"Wrote schedule: {args.output}")
-    print(f"Daily capture times: {len(times)}")
-    print(f"Total scheduled captures: {len(times) * args.num_days}")
+    print(f"Daily time points: {daily_time_points}")
+    print(f"Replicates per time point: {args.replicates}")
+    print(f"Daily scheduled captures: {daily_captures}")
+    print(f"Total scheduled captures: {total_captures}")
 
 
 if __name__ == "__main__":
