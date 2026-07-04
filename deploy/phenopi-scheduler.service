@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 User=phenopi
 WorkingDirectory=/home/phenopi/phenotyping
-ExecStart=/home/phenopi/venvs/phenopi/bin/python -m scripts.scheduling.run_scheduler
+ExecStart=/home/phenopi/venvs/phenopi/bin/python -m scripts.scheduling.scheduler
 Restart=always
 RestartSec=5
 

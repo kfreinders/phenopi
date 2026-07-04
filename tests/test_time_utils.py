@@ -4,6 +4,7 @@ from scripts.scheduling.time_utils import (
     parse_hhmm,
     every_n_minutes,
     every_n_minutes_for_duration,
+    centered_time_range,
     combine_times,
 )
 
@@ -104,6 +105,82 @@ def test_every_n_minutes_for_duration_cases(start, duration, step, expected):
 def test_every_n_minutes_for_duration_errors(duration, step):
     with pytest.raises(ValueError):
         every_n_minutes_for_duration("12:00", duration, step)
+
+
+# ---------------------------------------------------------------------------
+# centered_time_range
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "center, before, after, step, expected",
+    [
+        (
+            "12:00",
+            60,
+            60,
+            30,
+            ["11:00", "11:30", "12:00", "12:30", "13:00"],
+        ),
+        (
+            "12:00",
+            0,
+            60,
+            20,
+            ["12:00", "12:20", "12:40", "13:00"],
+        ),
+        (
+            "12:00",
+            60,
+            0,
+            20,
+            ["11:00", "11:20", "11:40", "12:00"],
+        ),
+        (
+            "12:00",
+            0,
+            0,
+            15,
+            ["12:00"],
+        ),
+        (
+            "12:00",
+            45,
+            45,
+            30,
+            ["11:15", "11:45", "12:15", "12:45"],
+        ),
+    ],
+)
+def test_centered_time_range_cases(center, before, after, step, expected):
+    assert centered_time_range(center, before, after, step) == expected
+
+
+@pytest.mark.parametrize(
+    "before, after, step",
+    [
+        (-1, 60, 15),   # invalid before
+        (60, -1, 15),   # invalid after
+        (60, 60, 0),    # invalid step
+        (60, 60, -5),   # invalid step
+    ],
+)
+def test_centered_time_range_invalid_arguments(before, after, step):
+    with pytest.raises(ValueError):
+        centered_time_range("12:00", before, after, step)
+
+
+@pytest.mark.parametrize(
+    "center",
+    [
+        "abc",
+        "",
+        "24:00",
+        "12:60",
+    ],
+)
+def test_centered_time_range_invalid_center(center):
+    with pytest.raises(ValueError):
+        centered_time_range(center, 60, 60, 15)
 
 
 # ---------------------------------------------------------------------------

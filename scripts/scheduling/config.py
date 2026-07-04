@@ -8,24 +8,27 @@ from zoneinfo import ZoneInfo
 
 @dataclass(frozen=True)
 class SchedulerConfig:
-    config_path: Path
-    state_path: Path
-    capture_script: str
-    python_bin: str
+    schedule_path: Path
+    capture_script: Path
+    python_bin: Path
     output_dir: Path
-    max_lateness: timedelta
-    poll_interval: float
+    runtime_dir: Path
+    misfire_grace: timedelta
+    reload_interval: timedelta
     tz: ZoneInfo
 
 
 def default_scheduler_config() -> SchedulerConfig:
+    wd = Path(
+        "/home/phenopi/phenopi/"
+    )
     return SchedulerConfig(
-        config_path=Path("/home/phenopi/phenotyping/schedule.json"),
-        state_path=Path("/home/phenopi/phenotyping/completed_jobs.json"),
-        capture_script="/home/phenopi/phenotyping/capture_once.py",
-        python_bin="/home/phenopi/venvs/phenopi/bin/python",
-        output_dir=Path("/home/phenopi/captures"),
-        max_lateness=timedelta(minutes=10),
-        poll_interval=20.0,
+        schedule_path=wd / "runtime/schedule.json",
+        capture_script=wd / "scripts/capture/capture_once.py",
+        python_bin=Path("/home/phenopi/venvs/phenopi/bin/python"),
+        output_dir=wd / "captures",
+        runtime_dir=wd / "runtime/",
+        misfire_grace=timedelta(minutes=10),
+        reload_interval=timedelta(seconds=30),
         tz=ZoneInfo("Europe/Amsterdam"),
     )
