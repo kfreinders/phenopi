@@ -10,6 +10,7 @@ import sys
 from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 
 from .config import SchedulerConfig, default_scheduler_config
 from .schedule_validation import (
@@ -147,6 +148,119 @@ def run_capture(config: SchedulerConfig) -> None:
     )
 
 
+def make_scheduler(config: SchedulerConfig) -> BlockingScheduler:
+    """
+    Create an APScheduler instance with a persistent SQLite job store.
+
+    Parameters
+    ----------
+    config : SchedulerConfig
+        Scheduler configuration.
+
+    Returns
+    -------
+    BlockingScheduler
+        Configured blocking scheduler.
+    """
+    config.jobstore_path.parent.mkdir(parents=True, exist_ok=True)
+
+    jobstores = {
+        "default": SQLAlchemyJobStore(
+            url=f"sqlite:///{config.jobstore_path}"
+        )
+    }
+
+    return BlockingScheduler(
+        timezone=config.tz,
+        jobstores=jobstores,
+    )
+
+
+def format_datetime(value: datetime) -> str:
+    """
+    Format a datetime for scheduler log messages.
+
+    Parameters
+    ----------
+    value : datetime
+        Datetime to format.
+
+    Returns
+    -------
+    str
+        Human-readable datetime string.
+    """
+    return value.strftime("%Y-%m-%d %H:%M:%S %Z")
+
+
+def print_startup_summary(
+    config: SchedulerConfig,
+    schedule_hash: str,
+    run_times: list[datetime],
+    scheduled: int,
+    skipped_late: int,
+    jobstore_existed: bool,
+) -> None:
+    """
+    Print a user-facing summary of scheduler startup.
+
+    Parameters
+    ----------
+    config : SchedulerConfig
+        Scheduler configuration.
+    schedule_hash : str
+        SHA-256 hash of the loaded schedule file.
+    run_times : list[datetime]
+        All configured capture datetimes.
+    scheduled : int
+        Number of capture jobs added to APScheduler.
+    skipped_late : int
+        Number of configured captures skipped because they were too far in the
+        past.
+    jobstore_existed : bool
+        Whether the persistent APScheduler job store already existed before
+        startup.
+    """
+    print(f"[scheduler] Loaded schedule: {config.schedule_path}")
+    print(f"[scheduler] Schedule hash: {schedule_hash}")
+    print(f"[scheduler] Job store: {config.jobstore_path}")
+
+    if jobstore_existed:
+        print("[scheduler] Existing job store found; resuming scheduler state")
+    else:
+        print("[scheduler] No existing job store found; creating a new one")
+
+    print(f"[scheduler] Configured capture jobs: {len(run_times)}")
+    print(f"[scheduler] Scheduled pending jobs: {scheduled}")
+
+    if skipped_late:
+        print(
+            "[scheduler] Skipped "
+            f"{skipped_late} capture job(s) older than the misfire grace window"
+        )
+
+    if scheduled == 0:
+        if run_times:
+            print(
+                "[scheduler] No pending capture jobs remain. "
+                "The configured schedule appears to be complete or entirely in "
+                "the past."
+            )
+        else:
+            print("[scheduler] No capture jobs were found in the schedule.")
+        return
+
+    pending = [
+        run_time
+        for run_time in run_times
+        if run_time >= datetime.now(config.tz) - config.misfire_grace
+    ]
+
+    if pending:
+        print(f"[scheduler] Next capture: {format_datetime(pending[0])}")
+        print(f"[scheduler] Last capture: {format_datetime(pending[-1])}")
+
+
 def config_from_args(args: argparse.Namespace) -> SchedulerConfig:
     default = default_scheduler_config()
 
@@ -156,6 +270,7 @@ def config_from_args(args: argparse.Namespace) -> SchedulerConfig:
         capture_script=args.capture_script or default.capture_script,
         python_bin=args.python_bin or default.python_bin,
         output_dir=args.output_dir or default.output_dir,
+        jobstore_path=args.jobstore_path or default.jobstore_path,
         misfire_grace=(
             timedelta(seconds=args.misfire_grace_seconds)
             if args.misfire_grace_seconds is not None
@@ -176,6 +291,7 @@ def main() -> None:
     parser.add_argument("--capture-script", type=Path)
     parser.add_argument("--python-bin", type=Path)
     parser.add_argument("--output-dir", type=Path)
+    parser.add_argument("--jobstore-path", type=Path)
     parser.add_argument("--timezone")
     parser.add_argument("--misfire-grace-seconds", type=int)
     parser.add_argument("--reload-interval-seconds", type=float)
@@ -186,6 +302,7 @@ def main() -> None:
     tz = config.tz
 
     try:
+        schedule_hash = schedule_content_hash(config.schedule_path)
         cfg = load_schedule(config.schedule_path)
         run_times = expand_schedule(cfg, tz)
     except (
@@ -194,13 +311,16 @@ def main() -> None:
         print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(2) from None
 
-    scheduler = BlockingScheduler(timezone=tz)
+    jobstore_existed = config.jobstore_path.exists()
+    scheduler = make_scheduler(config)
 
     now = datetime.now(tz)
     scheduled = 0
+    skipped_late = 0
 
-    for _, run_time in enumerate(run_times):
+    for run_time in run_times:
         if run_time < now - config.misfire_grace:
+            skipped_late += 1
             continue
 
         scheduler.add_job(
@@ -211,13 +331,20 @@ def main() -> None:
             id=f"{CAPTURE_JOB_PREFIX}{run_time.isoformat()}",
             misfire_grace_time=int(config.misfire_grace.total_seconds()),
             max_instances=1,
+            replace_existing=True,
         )
         scheduled += 1
 
-    print(f"Loaded schedule: {config.schedule_path}")
-    print(f"Scheduled {scheduled} capture job(s)")
-    print("Starting scheduler")
+    print_startup_summary(
+        config=config,
+        schedule_hash=schedule_hash,
+        run_times=run_times,
+        scheduled=scheduled,
+        skipped_late=skipped_late,
+        jobstore_existed=jobstore_existed,
+    )
 
+    print("[scheduler] Starting scheduler")
     scheduler.start()
 
 

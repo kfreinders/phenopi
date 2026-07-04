@@ -13,6 +13,7 @@ class SchedulerConfig:
     capture_script: Path
     python_bin: Path
     output_dir: Path
+    jobstore_path: Path
     misfire_grace: timedelta
     reload_interval: timedelta
     tz: ZoneInfo
@@ -42,6 +43,7 @@ def default_scheduler_config() -> SchedulerConfig:
         capture_script=testpath / "scripts/capture/dummy_capture.py",
         python_bin=Path("/home/koen/Downloads/plantcv/bin/python"),
         output_dir=testpath / "captures",
+        jobstore_path=testpath / "runtime/apscheduler.sqlite",
         misfire_grace=timedelta(minutes=10),
         reload_interval=timedelta(seconds=5),
         tz=ZoneInfo("Europe/Amsterdam"),
