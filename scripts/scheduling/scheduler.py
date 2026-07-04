@@ -19,10 +19,6 @@ from .schedule_validation import (
 )
 
 
-CAPTURE_JOB_PREFIX = "capture:"
-RELOAD_JOB_ID = "reload_schedule"
-
-
 def parse_hhmm(value: str) -> time:
     """
     Parse a time string in "HH:MM" format.
@@ -148,7 +144,10 @@ def run_capture(config: SchedulerConfig) -> None:
     )
 
 
-def make_scheduler(config: SchedulerConfig) -> BlockingScheduler:
+def make_scheduler(
+    config: SchedulerConfig,
+    jobstore_path: Path,
+) -> BlockingScheduler:
     """
     Create an APScheduler instance with a persistent SQLite job store.
 
@@ -156,17 +155,19 @@ def make_scheduler(config: SchedulerConfig) -> BlockingScheduler:
     ----------
     config : SchedulerConfig
         Scheduler configuration.
+    jobstore_path : Path
+        SQLite database path used by APScheduler.
 
     Returns
     -------
     BlockingScheduler
         Configured blocking scheduler.
     """
-    config.jobstore_path.parent.mkdir(parents=True, exist_ok=True)
+    jobstore_path.parent.mkdir(parents=True, exist_ok=True)
 
     jobstores = {
         "default": SQLAlchemyJobStore(
-            url=f"sqlite:///{config.jobstore_path}"
+            url=f"sqlite:///{jobstore_path}"
         )
     }
 
@@ -174,6 +175,32 @@ def make_scheduler(config: SchedulerConfig) -> BlockingScheduler:
         timezone=config.tz,
         jobstores=jobstores,
     )
+
+
+def jobstore_path_for_schedule(
+    runtime_dir: Path,
+    schedule_hash: str,
+    hash_length: int = 12,
+) -> Path:
+    """
+    Build the APScheduler SQLite job store path for a schedule hash.
+
+    Parameters
+    ----------
+    runtime_dir : Path
+        Directory where runtime files are stored.
+    schedule_hash : str
+        SHA-256 hash of the schedule file contents.
+    hash_length : int, optional
+        Number of hash characters to include in the filename.
+
+    Returns
+    -------
+    Path
+        SQLite job store path for the schedule.
+    """
+    short_hash = schedule_hash[:hash_length]
+    return runtime_dir / f"apscheduler-{short_hash}.sqlite"
 
 
 def format_datetime(value: datetime) -> str:
@@ -196,6 +223,7 @@ def format_datetime(value: datetime) -> str:
 def print_startup_summary(
     config: SchedulerConfig,
     schedule_hash: str,
+    jobstore_path: Path,
     run_times: list[datetime],
     scheduled: int,
     skipped_late: int,
@@ -210,6 +238,8 @@ def print_startup_summary(
         Scheduler configuration.
     schedule_hash : str
         SHA-256 hash of the loaded schedule file.
+    jobstore_path : Path
+        SQLite job store path used for this schedule.
     run_times : list[datetime]
         All configured capture datetimes.
     scheduled : int
@@ -223,28 +253,34 @@ def print_startup_summary(
     """
     print(f"[scheduler] Loaded schedule: {config.schedule_path}")
     print(f"[scheduler] Schedule hash: {schedule_hash}")
-    print(f"[scheduler] Job store: {config.jobstore_path}")
+    print(f"[scheduler] Job store: {jobstore_path}")
 
     if jobstore_existed:
-        print("[scheduler] Existing job store found; resuming scheduler state")
+        print(
+            "[scheduler] Matching job store found for this schedule; "
+            "resuming pending jobs"
+        )
     else:
-        print("[scheduler] No existing job store found; creating a new one")
+        print(
+            "[scheduler] No matching job store found for this schedule; "
+            "creating a new scheduler database"
+        )
 
     print(f"[scheduler] Configured capture jobs: {len(run_times)}")
     print(f"[scheduler] Scheduled pending jobs: {scheduled}")
 
     if skipped_late:
         print(
-            "[scheduler] Skipped "
-            f"{skipped_late} capture job(s) older than the misfire grace window"
+            f"[scheduler] Skipped {skipped_late} capture job(s) older than"
+            "the misfire grace window"
         )
 
     if scheduled == 0:
         if run_times:
             print(
                 "[scheduler] No pending capture jobs remain. "
-                "The configured schedule appears to be complete or entirely in "
-                "the past."
+                "The configured schedule appears to be complete or entirely "
+                "in the past."
             )
         else:
             print("[scheduler] No capture jobs were found in the schedule.")
@@ -270,7 +306,7 @@ def config_from_args(args: argparse.Namespace) -> SchedulerConfig:
         capture_script=args.capture_script or default.capture_script,
         python_bin=args.python_bin or default.python_bin,
         output_dir=args.output_dir or default.output_dir,
-        jobstore_path=args.jobstore_path or default.jobstore_path,
+        runtime_dir=args.runtime_dir or default.runtime_dir,
         misfire_grace=(
             timedelta(seconds=args.misfire_grace_seconds)
             if args.misfire_grace_seconds is not None
@@ -291,7 +327,7 @@ def main() -> None:
     parser.add_argument("--capture-script", type=Path)
     parser.add_argument("--python-bin", type=Path)
     parser.add_argument("--output-dir", type=Path)
-    parser.add_argument("--jobstore-path", type=Path)
+    parser.add_argument("--runtime-dir", type=Path)
     parser.add_argument("--timezone")
     parser.add_argument("--misfire-grace-seconds", type=int)
     parser.add_argument("--reload-interval-seconds", type=float)
@@ -303,6 +339,12 @@ def main() -> None:
 
     try:
         schedule_hash = schedule_content_hash(config.schedule_path)
+        jobstore_path = jobstore_path_for_schedule(
+            runtime_dir=config.runtime_dir,
+            schedule_hash=schedule_hash,
+        )
+        jobstore_existed = jobstore_path.exists()
+
         cfg = load_schedule(config.schedule_path)
         run_times = expand_schedule(cfg, tz)
     except (
@@ -311,8 +353,7 @@ def main() -> None:
         print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(2) from None
 
-    jobstore_existed = config.jobstore_path.exists()
-    scheduler = make_scheduler(config)
+    scheduler = make_scheduler(config, jobstore_path)
 
     now = datetime.now(tz)
     scheduled = 0
@@ -328,7 +369,7 @@ def main() -> None:
             trigger="date",
             run_date=run_time,
             args=[config],
-            id=f"{CAPTURE_JOB_PREFIX}{run_time.isoformat()}",
+            id=f"capture_{run_time.isoformat()}",
             misfire_grace_time=int(config.misfire_grace.total_seconds()),
             max_instances=1,
             replace_existing=True,
@@ -338,6 +379,7 @@ def main() -> None:
     print_startup_summary(
         config=config,
         schedule_hash=schedule_hash,
+        jobstore_path=jobstore_path,
         run_times=run_times,
         scheduled=scheduled,
         skipped_late=skipped_late,
