@@ -191,36 +191,6 @@ def centered_time_range(
     return times
 
 
-def combine_times(*time_lists: list[str]) -> list[str]:
-    """
-    Combine multiple lists of time strings into one sorted unique list.
-
-    Duplicate times are removed, and the result is sorted lexicographically,
-    which is appropriate for zero-padded "HH:MM" strings.
-
-    Parameters
-    ----------
-    time_lists : list[str]
-        One or more lists of time strings in "HH:MM" format.
-
-    Returns
-    -------
-    list[str]
-        Sorted list of unique time strings.
-
-    Examples
-    --------
-    >>> combine_times(["09:00", "10:00"], ["09:30", "10:00"])
-    ['09:00', '09:30', '10:00']
-
-    Input lists do not need to be sorted.
-
-    >>> combine_times(["10:00", "09:00"], ["09:30"])
-    ['09:00', '09:30', '10:00']
-    """
-    return sorted({t for lst in time_lists for t in lst})
-
-
 def validate_unique_expanded_times(
     times: list[str],
     replicates: int,
