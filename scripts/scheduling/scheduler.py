@@ -203,6 +203,50 @@ def jobstore_path_for_schedule(
     return runtime_dir / f"apscheduler-{short_hash}.sqlite"
 
 
+def delete_stale_jobstores(
+    runtime_dir: Path,
+    current_jobstore_path: Path,
+) -> int:
+    """
+    Delete APScheduler SQLite stores that do not match the current schedule.
+
+    Job stores are named from the schedule hash. Any matching database in
+    `runtime_dir` that is not the current job store is considered stale and is
+    removed.
+
+    Parameters
+    ----------
+    runtime_dir : Path
+        Directory containing scheduler runtime files.
+    current_jobstore_path : Path
+        SQLite job store path for the currently loaded schedule.
+
+    Returns
+    -------
+    int
+        Number of stale job store files deleted.
+
+    Raises
+    ------
+    OSError
+        If a stale job store cannot be deleted.
+    """
+    if not runtime_dir.exists():
+        return 0
+
+    current_jobstore_path = current_jobstore_path.resolve()
+    deleted = 0
+
+    for path in runtime_dir.glob("apscheduler-*.sqlite"):
+        if path.resolve() == current_jobstore_path:
+            continue
+
+        path.unlink()
+        deleted += 1
+
+    return deleted
+
+
 def format_datetime(value: datetime) -> str:
     """
     Format a datetime for scheduler log messages.
@@ -228,6 +272,7 @@ def print_startup_summary(
     scheduled: int,
     skipped_late: int,
     jobstore_existed: bool,
+    stale_deleted: int,
 ) -> None:
     """
     Print a user-facing summary of scheduler startup.
@@ -264,6 +309,11 @@ def print_startup_summary(
         print(
             "[scheduler] No matching job store found for this schedule; "
             "creating a new scheduler database"
+        )
+
+    if stale_deleted:
+        print(
+            f"[scheduler] Deleted {stale_deleted} stale scheduler database(s)"
         )
 
     print(f"[scheduler] Configured capture jobs: {len(run_times)}")
@@ -345,6 +395,11 @@ def main() -> None:
         )
         jobstore_existed = jobstore_path.exists()
 
+        stale_deleted = delete_stale_jobstores(
+            runtime_dir=config.runtime_dir,
+            current_jobstore_path=jobstore_path,
+        )
+
         cfg = load_schedule(config.schedule_path)
         run_times = expand_schedule(cfg, tz)
     except (
@@ -384,6 +439,7 @@ def main() -> None:
         scheduled=scheduled,
         skipped_late=skipped_late,
         jobstore_existed=jobstore_existed,
+        stale_deleted=stale_deleted,
     )
 
     print("[scheduler] Starting scheduler")
