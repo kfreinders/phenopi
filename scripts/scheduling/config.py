@@ -14,6 +14,7 @@ class SchedulerConfig:
     output_dir: Path
     runtime_dir: Path
     misfire_grace: timedelta
+    reload_interval: timedelta
     tz: ZoneInfo
 
 
@@ -28,5 +29,6 @@ def default_scheduler_config() -> SchedulerConfig:
         output_dir=wd / "captures",
         runtime_dir=wd / "runtime/",
         misfire_grace=timedelta(minutes=10),
+        reload_interval=timedelta(seconds=30),
         tz=ZoneInfo("Europe/Amsterdam"),
     )

@@ -6,11 +6,13 @@ import json
 import subprocess
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
+import time as time_module
 import sys
 from zoneinfo import ZoneInfo
 
-from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+from apscheduler.schedulers.blocking import BlockingScheduler
 
 from .config import SchedulerConfig, default_scheduler_config
 from .schedule_validation import (
@@ -149,14 +151,18 @@ def make_scheduler(
     jobstore_path: Path,
 ) -> BlockingScheduler:
     """
-    Create an APScheduler instance with a persistent SQLite job store.
+    Create an APScheduler instance with persistent capture jobs.
+
+    Capture jobs are stored in a SQLite job store. Internal control jobs, such
+    as schedule polling, are stored in memory so that they are not persisted
+    into the schedule-specific database.
 
     Parameters
     ----------
     config : SchedulerConfig
         Scheduler configuration.
     jobstore_path : Path
-        SQLite database path used by APScheduler.
+        SQLite database path used for capture jobs.
 
     Returns
     -------
@@ -168,13 +174,65 @@ def make_scheduler(
     jobstores = {
         "default": SQLAlchemyJobStore(
             url=f"sqlite:///{jobstore_path}"
-        )
+        ),
+        "control": MemoryJobStore(),
     }
 
     return BlockingScheduler(
         timezone=config.tz,
         jobstores=jobstores,
     )
+
+
+def poll_schedule_for_changes(
+    scheduler: BlockingScheduler,
+    config: SchedulerConfig,
+    active_schedule_hash: str,
+) -> None:
+    """
+    Check whether the schedule file has changed.
+
+    If the schedule hash is unchanged, the current scheduler continues running.
+    If the schedule hash has changed and the new schedule is valid, the current
+    scheduler is shut down. The outer service loop can then restart the
+    scheduler using the new schedule hash and matching SQLite job store.
+
+    Parameters
+    ----------
+    scheduler : BlockingScheduler
+        Running scheduler instance.
+    config : SchedulerConfig
+        Scheduler configuration.
+    active_schedule_hash : str
+        Schedule hash used to initialize the current scheduler.
+    """
+    try:
+        current_hash = schedule_content_hash(config.schedule_path)
+
+        if current_hash == active_schedule_hash:
+            return
+
+        cfg = load_schedule(config.schedule_path)
+        expand_schedule(cfg, config.tz)
+
+    except (
+        ScheduleValidationError,
+        ValueError,
+        FileNotFoundError,
+        OSError,
+        json.JSONDecodeError,
+    ) as exc:
+        print(
+            "[scheduler] Schedule file changed or could not be read, but the "
+            f"new schedule is not valid: {exc}. Keeping current schedule."
+        )
+        return
+
+    print(
+        "[scheduler] Schedule file changed and the new schedule is valid. "
+        "Restarting scheduler with the new schedule database."
+    )
+    scheduler.shutdown(wait=False)
 
 
 def jobstore_path_for_schedule(
@@ -201,6 +259,112 @@ def jobstore_path_for_schedule(
     """
     short_hash = schedule_hash[:hash_length]
     return runtime_dir / f"apscheduler-{short_hash}.sqlite"
+
+
+def run_scheduler_until_reload(config: SchedulerConfig) -> None:
+    """
+    Start APScheduler for the current schedule.
+
+    The function returns when the scheduler is shut down, for example because
+    the schedule polling job detected a valid schedule change.
+    """
+    tz = config.tz
+
+    try:
+        schedule_hash = schedule_content_hash(config.schedule_path)
+        jobstore_path = jobstore_path_for_schedule(
+            runtime_dir=config.runtime_dir,
+            schedule_hash=schedule_hash,
+        )
+        jobstore_existed = jobstore_path.exists()
+
+        stale_deleted = delete_stale_jobstores(
+            runtime_dir=config.runtime_dir,
+            current_jobstore_path=jobstore_path,
+        )
+
+        cfg = load_schedule(config.schedule_path)
+        run_times = expand_schedule(cfg, tz)
+    except FileNotFoundError:
+        print(
+            "[scheduler] Schedule file disappeared before it could be loaded. "
+            "Waiting for schedule..."
+        )
+        return
+    except (
+        ScheduleValidationError,
+        ValueError,
+        OSError,
+        json.JSONDecodeError,
+    ) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        raise SystemExit(2) from None
+
+    scheduler = make_scheduler(config, jobstore_path)
+
+    scheduler.add_job(
+        poll_schedule_for_changes,
+        trigger="interval",
+        seconds=config.reload_interval.total_seconds(),
+        args=[scheduler, config, schedule_hash],
+        id="poll_schedule",
+        max_instances=1,
+        replace_existing=True,
+        jobstore="control",
+    )
+
+    now = datetime.now(tz)
+    scheduled = 0
+    skipped_past = 0
+
+    for run_time in run_times:
+        if run_time < now:
+            skipped_past += 1
+            continue
+
+        scheduler.add_job(
+            run_capture,
+            trigger="date",
+            run_date=run_time,
+            args=[config],
+            id=f"capture_{run_time.isoformat()}",
+            misfire_grace_time=int(config.misfire_grace.total_seconds()),
+            max_instances=1,
+            replace_existing=True,
+        )
+        scheduled += 1
+
+    print_startup_summary(
+        config=config,
+        schedule_hash=schedule_hash,
+        jobstore_path=jobstore_path,
+        run_times=run_times,
+        scheduled=scheduled,
+        skipped_late=skipped_past,
+        jobstore_existed=jobstore_existed,
+        stale_deleted=stale_deleted,
+    )
+
+    print("[scheduler] Starting scheduler")
+    scheduler.start()
+
+
+def wait_for_schedule(config: SchedulerConfig) -> None:
+    """
+    Wait until the configured schedule file exists.
+
+    This is used when the scheduler service starts before an experiment
+    schedule has been created. The service remains active and periodically
+    checks for the schedule file.
+    """
+    interval_seconds = config.reload_interval.total_seconds()
+
+    while not config.schedule_path.exists():
+        print(
+            "[scheduler] No schedule file found at "
+            f"{config.schedule_path}. Waiting for schedule..."
+        )
+        time_module.sleep(interval_seconds)
 
 
 def delete_stale_jobstores(
@@ -334,6 +498,11 @@ def print_startup_summary(
             )
         else:
             print("[scheduler] No capture jobs were found in the schedule.")
+
+        print(
+            "[scheduler] Scheduler will remain active and continue watching "
+            "for schedule changes."
+        )
         return
 
     pending = [
@@ -361,6 +530,11 @@ def config_from_args(args: argparse.Namespace) -> SchedulerConfig:
             if args.misfire_grace_seconds is not None
             else default.misfire_grace
         ),
+        reload_interval=(
+            timedelta(seconds=args.reload_interval_seconds)
+            if args.reload_interval_seconds is not None
+            else default.reload_interval
+        ),
         tz=ZoneInfo(args.timezone) if args.timezone else default.tz,
     )
 
@@ -379,65 +553,15 @@ def main() -> None:
     args = parser.parse_args()
     config = config_from_args(args)
 
-    tz = config.tz
+    while True:
+        try:
+            wait_for_schedule(config)
+            run_scheduler_until_reload(config)
+        except KeyboardInterrupt:
+            print("[scheduler] Stopping scheduler")
+            raise SystemExit(0) from None
 
-    try:
-        schedule_hash = schedule_content_hash(config.schedule_path)
-        jobstore_path = jobstore_path_for_schedule(
-            runtime_dir=config.runtime_dir,
-            schedule_hash=schedule_hash,
-        )
-        jobstore_existed = jobstore_path.exists()
-
-        stale_deleted = delete_stale_jobstores(
-            runtime_dir=config.runtime_dir,
-            current_jobstore_path=jobstore_path,
-        )
-
-        cfg = load_schedule(config.schedule_path)
-        run_times = expand_schedule(cfg, tz)
-    except (
-        ScheduleValidationError, ValueError, FileNotFoundError, OSError
-    ) as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        raise SystemExit(2) from None
-
-    scheduler = make_scheduler(config, jobstore_path)
-
-    now = datetime.now(tz)
-    scheduled = 0
-    skipped_late = 0
-
-    for run_time in run_times:
-        if run_time < now - config.misfire_grace:
-            skipped_late += 1
-            continue
-
-        scheduler.add_job(
-            run_capture,
-            trigger="date",
-            run_date=run_time,
-            args=[config],
-            id=f"capture_{run_time.isoformat()}",
-            misfire_grace_time=int(config.misfire_grace.total_seconds()),
-            max_instances=1,
-            replace_existing=True,
-        )
-        scheduled += 1
-
-    print_startup_summary(
-        config=config,
-        schedule_hash=schedule_hash,
-        jobstore_path=jobstore_path,
-        run_times=run_times,
-        scheduled=scheduled,
-        skipped_late=skipped_late,
-        jobstore_existed=jobstore_existed,
-        stale_deleted=stale_deleted,
-    )
-
-    print("[scheduler] Starting scheduler")
-    scheduler.start()
+        print("[scheduler] Scheduler stopped; reloading schedule")
 
 
 if __name__ == "__main__":
