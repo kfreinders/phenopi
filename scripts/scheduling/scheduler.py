@@ -352,7 +352,6 @@ def config_from_args(args: argparse.Namespace) -> SchedulerConfig:
 
     return SchedulerConfig(
         schedule_path=args.schedule or default.schedule_path,
-        state_path=default.state_path,
         capture_script=args.capture_script or default.capture_script,
         python_bin=args.python_bin or default.python_bin,
         output_dir=args.output_dir or default.output_dir,
@@ -361,11 +360,6 @@ def config_from_args(args: argparse.Namespace) -> SchedulerConfig:
             timedelta(seconds=args.misfire_grace_seconds)
             if args.misfire_grace_seconds is not None
             else default.misfire_grace
-        ),
-        reload_interval=(
-            timedelta(seconds=args.reload_interval_seconds)
-            if args.reload_interval_seconds is not None
-            else default.reload_interval
         ),
         tz=ZoneInfo(args.timezone) if args.timezone else default.tz,
     )
