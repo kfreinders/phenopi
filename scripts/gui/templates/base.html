@@ -13,5 +13,40 @@
       <p>Experiment setup and analysis interface</p>
     </div>
   </header>
+
+  <main class="layout">
+    <nav class="tabs" aria-label="Phenopi sections">
+      <span class="tab disabled">Schedule builder</span>
+      <span class="tab disabled">Camera preview</span>
+      <span class="tab disabled">Scheduler status</span>
+      <span class="tab disabled">Acquisition</span>
+      <span class="tab disabled">Canopy analysis</span>
+      <span class="tab disabled">Growth plots</span>
+    </nav>
+
+    {% if error %}
+      <section class="alert error">{{ error }}</section>
+    {% endif %}
+    {% if message %}
+      <section class="alert success">{{ message }}</section>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <script>
+    function updateModeSections() {
+      const mode = document.querySelector('input[name="mode"]:checked')?.value;
+      for (const section of document.querySelectorAll('[data-mode-section]')) {
+        section.hidden = section.dataset.modeSection !== mode;
+      }
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      updateModeSections();
+      for (const radio of document.querySelectorAll('input[name="mode"]')) {
+        radio.addEventListener('change', updateModeSections);
+      }
+    });
+  </script>
 </body>
 </html>
