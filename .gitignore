@@ -5,6 +5,7 @@ __pycache__/
 # Runtime files
 captures/
 runtime/
+results/
 
 # LaTeX output
 main.*
