@@ -16,7 +16,7 @@
 
   <main class="layout">
     <nav class="tabs" aria-label="Phenopi sections">
-      <span class="tab disabled">Schedule builder</span>
+      <a class="tab {% if active_tab == 'schedule' %}active{% endif %}" href="/schedule">Schedule builder</a>
       <span class="tab disabled">Camera preview</span>
       <span class="tab disabled">Scheduler status</span>
       <span class="tab disabled">Acquisition</span>

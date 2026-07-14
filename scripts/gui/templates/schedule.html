@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <div class="card-header">
+    <div>
+      <h2>Schedule builder</h2>
+      <p>Create and preview Phenopi <code>schedule.json</code> files.</p>
+    </div>
+  </div>
+
+  <form method="post" class="schedule-form">
+    <fieldset>
+      <legend>Schedule mode</legend>
+      <div class="radio-row">
+        <label><input type="radio" name="mode" value="every" {% if form.mode == 'every' %}checked{% endif %}> Every n minutes</label>
+        <label><input type="radio" name="mode" value="duration" {% if form.mode == 'duration' %}checked{% endif %}> Fixed duration</label>
+        <label><input type="radio" name="mode" value="centered" {% if form.mode == 'centered' %}checked{% endif %}> Centered window</label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Experiment</legend>
+      <div class="grid">
+        <label>Start date
+          <input type="date" name="start_date" value="{{ form.start_date }}" required>
+        </label>
+        <label>Number of days
+          <input type="number" name="num_days" min="1" value="{{ form.num_days }}" required>
+        </label>
+        <label>Replicates
+          <input type="number" name="replicates" min="1" value="{{ form.replicates }}" required>
+        </label>
+        <label>Replicate interval (s)
+          <input type="number" name="replicate_interval_seconds" min="0" value="{{ form.replicate_interval_seconds }}" required>
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset data-mode-section="every">
+      <legend>Every n minutes</legend>
+      <div class="grid">
+        <label>Start time
+          <input type="time" name="every_start" value="{{ form.every_start }}">
+        </label>
+        <label>End time
+          <input type="time" name="every_end" value="{{ form.every_end }}">
+        </label>
+        <label>Step minutes
+          <input type="number" name="every_step_minutes" min="1" value="{{ form.every_step_minutes }}">
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset data-mode-section="duration">
+      <legend>Fixed duration</legend>
+      <div class="grid">
+        <label>Start time
+          <input type="time" name="duration_start" value="{{ form.duration_start }}">
+        </label>
+        <label>Duration minutes
+          <input type="number" name="duration_minutes" min="0" value="{{ form.duration_minutes }}">
+        </label>
+        <label>Step minutes
+          <input type="number" name="duration_step_minutes" min="1" value="{{ form.duration_step_minutes }}">
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset data-mode-section="centered">
+      <legend>Centered window</legend>
+      <div class="grid">
+        <label>Center time
+          <input type="time" name="centered_center" value="{{ form.centered_center }}">
+        </label>
+        <label>Before minutes
+          <input type="number" name="centered_before_minutes" min="0" value="{{ form.centered_before_minutes }}">
+        </label>
+        <label>After minutes
+          <input type="number" name="centered_after_minutes" min="0" value="{{ form.centered_after_minutes }}">
+        </label>
+        <label>Step minutes
+          <input type="number" name="centered_step_minutes" min="1" value="{{ form.centered_step_minutes }}">
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Output</legend>
+      <div class="grid output-grid">
+        <label>Output path on Raspberry Pi
+          <input type="text" name="output" value="{{ form.output }}" required>
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" name="overwrite" {% if form.overwrite %}checked{% endif %}>
+          Overwrite existing file
+        </label>
+      </div>
+    </fieldset>
+
+    <div class="actions">
+      <button formaction="/schedule/preview" type="submit" class="secondary">Preview</button>
+      <button formaction="/schedule/save" type="submit">Save schedule.json</button>
+    </div>
+  </form>
+</section>
+
+{% if preview %}
+<section class="card preview-card">
+  <div class="card-header">
+    <div>
+      <h2>Preview</h2>
+      <p>Mode: <strong>{{ preview.mode }}</strong></p>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div><span>{{ preview.daily_time_points }}</span>Daily time points</div>
+    <div><span>{{ preview.replicates }}</span>Replicates per time point</div>
+    <div><span>{{ preview.daily_captures }}</span>Daily captures</div>
+    <div><span>{{ preview.total_captures }}</span>Total captures</div>
+    <div><span>{{ preview.first_time }}</span>First time</div>
+    <div><span>{{ preview.last_time }}</span>Last time</div>
+  </div>
+
+  <div class="two-column">
+    <div>
+      <h3>Daily capture times</h3>
+      <div class="time-list">
+        {% for time in preview.times %}
+          <span>{{ time }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    <div>
+      <h3>schedule.json</h3>
+      <pre>{{ preview.as_schedule_dict() | tojson(indent=2) }}</pre>
+    </div>
+  </div>
+</section>
+{% endif %}
+{% endblock %}
