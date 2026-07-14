@@ -22,7 +22,12 @@
       <legend>Experiment</legend>
       <div class="grid">
         <label>Start date
-          <input type="date" name="start_date" value="{{ form.start_date }}" required>
+          <input
+            type="date"
+            name="start_date"
+            value="{{ form.start_date }}"
+            required
+          >
         </label>
         <label>Number of days
           <input type="number" name="num_days" min="1" value="{{ form.num_days }}" required>

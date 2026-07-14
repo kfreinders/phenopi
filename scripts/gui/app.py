@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -103,6 +104,10 @@ def build_schedule_preview(
     centered_after_minutes: int | None = None,
     centered_step_minutes: int | None = None,
 ) -> SchedulePreview:
+    try:
+        date.fromisoformat(start_date)
+    except ValueError as exc:
+        raise ValueError("Start date must use YYYY-MM-DD format.") from exc
     if num_days <= 0:
         raise ValueError("Number of days must be greater than 0.")
     if replicates <= 0:
@@ -160,7 +165,7 @@ def build_schedule_preview(
 def form_defaults() -> dict[str, Any]:
     return {
         "mode": "every",
-        "start_date": "",
+        "start_date": date.today().isoformat(),
         "num_days": 14,
         "replicates": 3,
         "replicate_interval_seconds": 30,
