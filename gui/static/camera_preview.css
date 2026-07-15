@@ -1,0 +1,147 @@
+#camera-preview[hidden],
+#camera-placeholder[hidden] {
+  display: none !important;
+}
+
+.camera-page {
+  overflow: hidden;
+}
+
+.camera-preview-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.camera-feed-card,
+.camera-info-card {
+  border: 1px solid #d7e4f3;
+  border-radius: 1rem;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(8, 34, 74, 0.06);
+}
+
+.camera-feed-card {
+  padding: 1rem;
+}
+
+.camera-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 28rem;
+  overflow: hidden;
+  border-radius: 0.9rem;
+  background:
+    radial-gradient(circle at top left, rgba(15, 118, 110, 0.16), transparent 24rem),
+    radial-gradient(circle at bottom right, rgba(11, 99, 206, 0.16), transparent 24rem),
+    #0f172a;
+}
+
+.camera-frame video {
+  width: 100%;
+  height: 100%;
+  min-height: 28rem;
+  object-fit: contain;
+  background: #0f172a;
+}
+
+.camera-placeholder {
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: #dbeafe;
+  padding: 2rem;
+}
+
+.camera-placeholder-icon {
+  display: grid;
+  place-items: center;
+  width: 4rem;
+  height: 4rem;
+  margin-bottom: 1rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 2rem;
+}
+
+.camera-placeholder h3 {
+  margin: 0;
+  color: #ffffff;
+}
+
+.camera-placeholder p {
+  max-width: 24rem;
+  margin: 0.4rem 0 0;
+  color: #cbd5e1;
+}
+
+.camera-controls {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.camera-info-card {
+  padding: 1rem;
+}
+
+.camera-info-card h3 {
+  margin-top: 0;
+}
+
+.camera-status-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.camera-status-list div {
+  padding: 0.75rem;
+  border: 1px solid #d7e4f3;
+  border-radius: 0.75rem;
+  background: #f8fbff;
+}
+
+.camera-status-list dt {
+  margin-bottom: 0.2rem;
+  color: #607087;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.camera-status-list dd {
+  margin: 0;
+  color: #08224a;
+  font-weight: 800;
+}
+
+.camera-note {
+  margin-top: 1rem;
+  padding: 0.85rem;
+  border-radius: 0.75rem;
+  background: #effaf7;
+  border: 1px solid #bae0d7;
+}
+
+.camera-note strong {
+  color: #0f766e;
+}
+
+.camera-note p {
+  margin: 0.35rem 0 0;
+  color: #526173;
+  line-height: 1.45;
+}
+
+@media (max-width: 900px) {
+  .camera-preview-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .camera-frame,
+  .camera-frame video {
+    min-height: 20rem;
+  }
+}

@@ -18,8 +18,12 @@
 
   <main class="layout">
     <nav class="tabs" aria-label="Phenopi sections">
-      <a class="tab {% if active_tab == 'schedule' %}active{% endif %}" href="/schedule">Schedule builder</a>
-      <span class="tab disabled">Camera preview</span>
+      <a class="tab {% if active_tab == 'schedule' %}active{% endif %}"
+        href="/schedule" > Schedule builder </a>
+
+      <a class="tab {% if active_tab == 'camera' %}active{% endif %}"
+        href="/camera" > Camera preview </a>
+
       <span class="tab disabled">Scheduler status</span>
       <span class="tab disabled">Acquisition</span>
       <span class="tab disabled">Canopy analysis</span>
