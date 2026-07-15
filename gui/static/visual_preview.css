@@ -1,0 +1,243 @@
+.preview-panel {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  border: 1px solid #d6e4f2;
+  border-radius: 1rem;
+  background: #ffffff;
+}
+
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1.25rem;
+}
+
+.preview-header h2 {
+  margin: 0;
+}
+
+.preview-header p {
+  margin: 0.25rem 0 0;
+  color: #5c6b7d;
+}
+
+.preview-range {
+  padding: 0.75rem 1rem;
+  border: 1px solid #d6e4f2;
+  border-radius: 0.85rem;
+  background: #f7fbff;
+  text-align: right;
+}
+
+.preview-range-label {
+  display: block;
+  color: #5c6b7d;
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin-bottom: 1.35rem;
+}
+
+.summary-card {
+  padding: 1rem;
+  border-radius: 0.85rem;
+  background: #edf6ff;
+  border: 1px solid #cce0f5;
+}
+
+.summary-card strong {
+  display: block;
+  color: #073b78;
+  font-size: 1.55rem;
+  line-height: 1.1;
+}
+
+.summary-card span {
+  display: block;
+  color: #5c6b7d;
+  margin-top: 0.2rem;
+}
+
+.visual-preview-grid {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.schedule-graphic-card {
+  padding: 1rem;
+  border: 1px solid #d6e4f2;
+  border-radius: 1rem;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.graphic-card-header h3 {
+  margin: 0;
+  color: #172033;
+}
+
+.graphic-card-header p {
+  margin: 0.35rem 0 0;
+  color: #5c6b7d;
+  line-height: 1.4;
+}
+
+.timeline-shell {
+  margin: 2rem 0 1.4rem;
+}
+
+.timeline-axis {
+  position: relative;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: #dce9f7;
+}
+
+.timeline-axis::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #0f766e 0%, #0b63ce 100%);
+  opacity: 0.18;
+}
+
+.timeline-point {
+  position: absolute;
+  top: 50%;
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 2px solid white;
+  border-radius: 50%;
+  background: #0b63ce;
+  box-shadow: 0 0 0 1px #0b63ce33;
+  transform: translate(-50%, -50%);
+}
+
+.timeline-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.65rem;
+  color: #172033;
+  font-weight: 700;
+}
+
+.day-strip {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.day-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.4rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 999px;
+  background: #eff8f6;
+  border: 1px solid #b9ddd7;
+  color: #0f766e;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.replicate-burst {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border-radius: 0.9rem;
+  background: #f3f8ff;
+  border: 1px solid #d6e4f2;
+}
+
+.replicate-time {
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.75rem;
+  background: #0b63ce;
+  color: white;
+  font-weight: 800;
+}
+
+.replicate-dots {
+  display: flex;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.replicate-dot-block {
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+}
+
+.replicate-dot {
+  display: inline-grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  background: #0f766e;
+  color: white;
+  font-weight: 800;
+}
+
+.replicate-dot-block small {
+  color: #5c6b7d;
+  font-weight: 700;
+}
+
+.json-details {
+  margin-top: 1rem;
+  border: 1px solid #d6e4f2;
+  border-radius: 0.85rem;
+  background: #f8fbff;
+}
+
+.json-details summary {
+  cursor: pointer;
+  padding: 0.85rem 1rem;
+  font-weight: 800;
+  color: #172033;
+}
+
+.json-details pre {
+  margin: 0;
+  padding: 1rem;
+  border-top: 1px solid #d6e4f2;
+  overflow: auto;
+  border-radius: 0 0 0.85rem 0.85rem;
+  background: #111827;
+  color: #e5e7eb;
+}
+
+@media (max-width: 950px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .visual-preview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .preview-header {
+    flex-direction: column;
+  }
+
+  .preview-range {
+    width: 100%;
+    text-align: left;
+  }
+}
+
