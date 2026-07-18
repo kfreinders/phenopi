@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,18 +16,32 @@ HEARTBEAT_STATES = {
     "waiting_for_schedule",
     "invalid_schedule",
 }
+_KEEP_SCHEDULE = object()
 
 
 class SchedulerHeartbeat:
     """Write the scheduler's current state to an atomic JSON heartbeat."""
 
-    def __init__(self, runtime_dir: Path) -> None:
+    def __init__(
+        self,
+        runtime_dir: Path,
+        storage_path: Path | None = None,
+    ) -> None:
         self.path = runtime_dir / HEARTBEAT_FILENAME
+        self.storage_path = storage_path
         self._state = "waiting_for_schedule"
         self._message = "The scheduler is waiting for a schedule file."
+        self._schedule: dict | None = None
+        self._last_capture = self._load_previous_capture()
         self._lock = Lock()
 
-    def set_state(self, state: str, message: str) -> bool:
+    def set_state(
+        self,
+        state: str,
+        message: str,
+        *,
+        schedule: dict | None | object = _KEEP_SCHEDULE,
+    ) -> bool:
         """Set the current state and immediately publish a heartbeat."""
         if state not in HEARTBEAT_STATES:
             raise ValueError(f"Unsupported scheduler heartbeat state: {state}")
@@ -34,6 +49,22 @@ class SchedulerHeartbeat:
         with self._lock:
             self._state = state
             self._message = message
+            if schedule is not _KEEP_SCHEDULE:
+                self._schedule = schedule
+                if schedule is None:
+                    self._last_capture = None
+                elif (
+                    self._last_capture is not None
+                    and self._last_capture.get("schedule_hash")
+                    != schedule.get("hash")
+                ):
+                    self._last_capture = None
+            return self._write_locked()
+
+    def record_capture(self, result: dict) -> bool:
+        """Publish the latest actual capture-job outcome."""
+        with self._lock:
+            self._last_capture = result
             return self._write_locked()
 
     def write(self) -> bool:
@@ -50,6 +81,9 @@ class SchedulerHeartbeat:
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "state": self._state,
             "message": self._message,
+            "schedule": self._schedule,
+            "last_capture": self._last_capture,
+            "storage": self._storage_payload(),
         }
 
         try:
@@ -64,3 +98,29 @@ class SchedulerHeartbeat:
             return False
 
         return True
+
+    def _load_previous_capture(self) -> dict | None:
+        try:
+            payload = json.loads(self.path.read_text())
+            result = payload.get("last_capture")
+            return result if isinstance(result, dict) else None
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            return None
+
+    def _storage_payload(self) -> dict | None:
+        if self.storage_path is None:
+            return None
+        path = self.storage_path
+        while not path.exists() and path != path.parent:
+            path = path.parent
+        try:
+            usage = shutil.disk_usage(path)
+        except OSError:
+            return None
+        used = usage.total - usage.free
+        return {
+            "total_bytes": usage.total,
+            "used_bytes": used,
+            "free_bytes": usage.free,
+            "used_percent": round(used / usage.total * 100, 1),
+        }

@@ -24,7 +24,8 @@
       <a class="tab {% if active_tab == 'camera' %}active{% endif %}"
         href="/camera" > Camera preview </a>
 
-      <span class="tab disabled">Scheduler status</span>
+      <a class="tab {% if active_tab == 'scheduler' %}active{% endif %}"
+        href="/scheduler"> Scheduler status </a>
       <span class="tab disabled">Acquisition</span>
       <span class="tab disabled">Canopy analysis</span>
       <span class="tab disabled">Growth plots</span>

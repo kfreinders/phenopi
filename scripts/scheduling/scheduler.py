@@ -4,12 +4,13 @@ import argparse
 import hashlib
 import json
 import subprocess
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 import time as time_module
 import sys
 from zoneinfo import ZoneInfo
 
+from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED, EVENT_JOB_MISSED
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.blocking import BlockingScheduler
@@ -117,6 +118,30 @@ def expand_schedule(cfg: dict, tz: ZoneInfo) -> list[datetime]:
     return sorted(jobs)
 
 
+def build_schedule_snapshot(
+    cfg: dict,
+    schedule_hash: str,
+    tz: ZoneInfo,
+) -> dict:
+    """Build the normalized schedule metadata published in the heartbeat."""
+    return {
+        "hash": schedule_hash,
+        "timezone": getattr(tz, "key", str(tz)),
+        "start_date": date.fromisoformat(cfg["start_date"]).isoformat(),
+        "num_days": int(cfg["num_days"]),
+        "times": sorted(
+            {
+                parse_hhmm(value).strftime("%H:%M")
+                for value in cfg["times"]
+            }
+        ),
+        "replicates": int(cfg.get("replicates", 1)),
+        "replicate_interval_seconds": int(
+            cfg.get("replicate_interval_seconds", 0)
+        ),
+    }
+
+
 def run_capture(config: SchedulerConfig) -> None:
     """
     Execute the capture script as a subprocess.
@@ -144,6 +169,34 @@ def run_capture(config: SchedulerConfig) -> None:
             str(config.output_dir),
         ],
         check=True,
+    )
+
+
+def record_capture_event(
+    event,
+    heartbeat: SchedulerHeartbeat,
+    schedule_hash: str,
+) -> None:
+    """Record the latest capture result from an APScheduler job event."""
+    if not event.job_id.startswith("capture_"):
+        return
+    if event.code == EVENT_JOB_EXECUTED:
+        status = "succeeded"
+        message = "Capture completed successfully."
+    elif event.code == EVENT_JOB_MISSED:
+        status = "missed"
+        message = "Capture was missed by the scheduler."
+    else:
+        status = "failed"
+        message = str(event.exception) if event.exception else "Capture failed."
+    heartbeat.record_capture(
+        {
+            "schedule_hash": schedule_hash,
+            "status": status,
+            "scheduled_at": event.scheduled_run_time.isoformat(),
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+            "message": message,
+        }
     )
 
 
@@ -310,6 +363,7 @@ def run_scheduler_until_reload(
             heartbeat.set_state(
                 "waiting_for_schedule",
                 "The scheduler is waiting for a schedule file.",
+                schedule=None,
             )
         print(
             "[scheduler] Schedule file disappeared before it could be loaded. "
@@ -326,11 +380,22 @@ def run_scheduler_until_reload(
             heartbeat.set_state(
                 "invalid_schedule",
                 f"The scheduler could not load the schedule: {exc}",
+                schedule=None,
             )
         print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(2) from None
 
     scheduler = make_scheduler(config, jobstore_path)
+
+    if heartbeat is not None:
+        scheduler.add_listener(
+            lambda event: record_capture_event(
+                event,
+                heartbeat,
+                schedule_hash,
+            ),
+            EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED,
+        )
 
     scheduler.add_job(
         poll_schedule_for_changes,
@@ -347,6 +412,7 @@ def run_scheduler_until_reload(
         heartbeat.set_state(
             "running",
             "The scheduler is running with a valid schedule.",
+            schedule=build_schedule_snapshot(cfg, schedule_hash, tz),
         )
         scheduler.add_job(
             heartbeat.write,
@@ -415,6 +481,7 @@ def wait_for_schedule(
             heartbeat.set_state(
                 "waiting_for_schedule",
                 "The scheduler is waiting for a schedule file.",
+                schedule=None,
             )
         print(
             "[scheduler] No schedule file found at "
@@ -608,7 +675,10 @@ def main() -> None:
 
     args = parser.parse_args()
     config = config_from_args(args)
-    heartbeat = SchedulerHeartbeat(config.runtime_dir)
+    heartbeat = SchedulerHeartbeat(
+        config.runtime_dir,
+        storage_path=config.output_dir,
+    )
 
     while True:
         try:

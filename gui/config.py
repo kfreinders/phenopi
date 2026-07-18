@@ -20,5 +20,8 @@ def get_project_root() -> Path:
 PROJECT_ROOT = get_project_root()
 
 DEFAULT_SCHEDULE_PATH = PROJECT_ROOT / "runtime" / "schedule.json"
+SCHEDULER_HEARTBEAT_PATH = (
+    PROJECT_ROOT / "runtime" / "scheduler-heartbeat.json"
+)
 
 templates = Jinja2Templates(directory=APP_DIR / "templates")

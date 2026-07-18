@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from gui.config import APP_DIR
-from gui.routes import camera, schedule
+from gui.routes import camera, schedule, scheduler
 
 
 def create_app() -> FastAPI:
@@ -19,6 +19,7 @@ def create_app() -> FastAPI:
 
     app.include_router(schedule.router)
     app.include_router(camera.router)
+    app.include_router(scheduler.router)
 
     return app
 

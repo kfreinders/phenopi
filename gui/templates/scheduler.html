@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="scheduler-page" aria-live="polite">
+  <div class="scheduler-heading">
+    <div>
+      <span class="eyebrow">Acquisition control</span>
+      <h2>Scheduler overview</h2>
+      <p>Live service health and planned experiment progress.</p>
+    </div>
+  </div>
+
+  <section id="scheduler-status-card" class="scheduler-health">
+    <span id="scheduler-status-indicator" class="scheduler-status-indicator"></span>
+    <div class="health-copy">
+      <span class="scheduler-label">Scheduler health</span>
+      <strong id="scheduler-status">Loading</strong>
+      <p id="scheduler-message">Reading the scheduler heartbeat…</p>
+    </div>
+    <span id="health-freshness" class="health-freshness">Checking heartbeat…</span>
+  </section>
+
+  <div id="schedule-warning" class="schedule-warning" hidden></div>
+
+  <section id="schedule-empty" class="card schedule-empty" hidden>
+    <div class="empty-icon">⌁</div>
+    <h3>No schedule loaded</h3>
+    <p>The scheduler is ready for an experiment schedule.</p>
+    <a class="primary-link" href="/schedule">Create a schedule</a>
+  </section>
+
+  <div id="schedule-dashboard" hidden>
+    <section class="schedule-hero card">
+      <div class="schedule-identity">
+        <span id="schedule-lifecycle" class="lifecycle-badge">—</span>
+        <h3 id="schedule-title">Current schedule</h3>
+        <p id="schedule-range">—</p>
+      </div>
+      <div id="progress-ring" class="progress-ring" role="img" aria-label="Schedule progress">
+        <div><strong id="progress-percent">0%</strong><span id="progress-count">planned progress</span><small id="progress-day"></small></div>
+      </div>
+    </section>
+
+    <section class="metric-grid" aria-label="Schedule statistics">
+      <article><span>Next capture</span><strong id="metric-next">—</strong><small id="metric-next-relative"></small></article>
+      <article><span>Final capture</span><strong id="metric-final">—</strong></article>
+      <article id="last-capture-card"><span>Latest actual capture</span><strong id="metric-last-capture">—</strong><small id="metric-last-capture-time"></small></article>
+      <article id="storage-card"><span>Capture storage</span><strong id="metric-storage">—</strong><small id="metric-storage-used"></small></article>
+    </section>
+
+    <section class="card overview-card">
+      <div class="section-heading"><div><h3>Experiment timeline</h3><p>Planned progress across each experiment day.</p></div></div>
+      <div id="day-strip" class="experiment-days"></div>
+      <div class="day-legend"><span class="complete">Complete</span><span class="current">Current</span><span class="upcoming">Upcoming</span></div>
+    </section>
+
+    <section class="dashboard-grid">
+      <section class="card overview-card activity-card">
+        <div class="section-heading"><div><h3>Daily imaging window</h3><p id="daily-summary">—</p></div></div>
+        <div class="activity-summary">
+          <div><span>Imaging window</span><strong id="activity-window">—</strong><small id="activity-window-duration">—</small></div>
+          <div><span>Cadence</span><strong id="activity-cadence">—</strong></div>
+          <div><span>Peak load</span><strong id="activity-peak">—</strong></div>
+        </div>
+        <div class="activity-profile-shell" role="img" aria-label="Hourly daily imaging activity">
+          <div class="activity-period"><span>00–11</span><div id="activity-am" class="activity-hours"></div></div>
+          <div class="activity-period"><span>12–23</span><div id="activity-pm" class="activity-hours"></div></div>
+        </div>
+        <div class="activity-legend"><span>No captures</span><i></i><span id="activity-legend-peak">Peak</span></div>
+        <div class="replicate-compact">
+          <div><strong>Technical replicates</strong><p id="replicate-summary">—</p></div>
+          <div id="replicate-burst" class="replicate-burst"></div>
+        </div>
+      </section>
+    </section>
+  </div>
+</section>
+
+<script id="initial-scheduler-status" type="application/json">{{ scheduler_status | tojson }}</script>
+<link rel="stylesheet" href="{{ url_for('static', path='scheduler_status.css') }}">
+<script src="{{ url_for('static', path='scheduler_status.js') }}" defer></script>
+{% endblock %}
