@@ -15,6 +15,7 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.blocking import BlockingScheduler
 
 from .config import SchedulerConfig, default_scheduler_config
+from .heartbeat import HEARTBEAT_INTERVAL_SECONDS, SchedulerHeartbeat
 from .schedule_validation import (
     ScheduleValidationError,
     validate_unique_values,
@@ -188,6 +189,7 @@ def poll_schedule_for_changes(
     scheduler: BlockingScheduler,
     config: SchedulerConfig,
     active_schedule_hash: str,
+    heartbeat: SchedulerHeartbeat | None = None,
 ) -> None:
     """
     Check whether the schedule file has changed.
@@ -210,6 +212,11 @@ def poll_schedule_for_changes(
         current_hash = schedule_content_hash(config.schedule_path)
 
         if current_hash == active_schedule_hash:
+            if heartbeat is not None:
+                heartbeat.set_state(
+                    "running",
+                    "The scheduler is running with a valid schedule.",
+                )
             return
 
         cfg = load_schedule(config.schedule_path)
@@ -222,6 +229,11 @@ def poll_schedule_for_changes(
         OSError,
         json.JSONDecodeError,
     ) as exc:
+        if heartbeat is not None:
+            heartbeat.set_state(
+                "invalid_schedule",
+                f"The updated schedule is invalid; keeping the active schedule: {exc}",
+            )
         print(
             "[scheduler] Schedule file changed or could not be read, but the "
             f"new schedule is not valid: {exc}. Keeping current schedule."
@@ -232,6 +244,11 @@ def poll_schedule_for_changes(
         "[scheduler] Schedule file changed and the new schedule is valid. "
         "Restarting scheduler with the new schedule database."
     )
+    if heartbeat is not None:
+        heartbeat.set_state(
+            "running",
+            "A valid schedule update was found; reloading the scheduler.",
+        )
     scheduler.shutdown(wait=False)
 
 
@@ -261,7 +278,10 @@ def jobstore_path_for_schedule(
     return runtime_dir / f"apscheduler-{short_hash}.sqlite"
 
 
-def run_scheduler_until_reload(config: SchedulerConfig) -> None:
+def run_scheduler_until_reload(
+    config: SchedulerConfig,
+    heartbeat: SchedulerHeartbeat | None = None,
+) -> None:
     """
     Start APScheduler for the current schedule.
 
@@ -286,6 +306,11 @@ def run_scheduler_until_reload(config: SchedulerConfig) -> None:
         cfg = load_schedule(config.schedule_path)
         run_times = expand_schedule(cfg, tz)
     except FileNotFoundError:
+        if heartbeat is not None:
+            heartbeat.set_state(
+                "waiting_for_schedule",
+                "The scheduler is waiting for a schedule file.",
+            )
         print(
             "[scheduler] Schedule file disappeared before it could be loaded. "
             "Waiting for schedule..."
@@ -297,6 +322,11 @@ def run_scheduler_until_reload(config: SchedulerConfig) -> None:
         OSError,
         json.JSONDecodeError,
     ) as exc:
+        if heartbeat is not None:
+            heartbeat.set_state(
+                "invalid_schedule",
+                f"The scheduler could not load the schedule: {exc}",
+            )
         print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(2) from None
 
@@ -306,12 +336,27 @@ def run_scheduler_until_reload(config: SchedulerConfig) -> None:
         poll_schedule_for_changes,
         trigger="interval",
         seconds=config.reload_interval.total_seconds(),
-        args=[scheduler, config, schedule_hash],
+        args=[scheduler, config, schedule_hash, heartbeat],
         id="poll_schedule",
         max_instances=1,
         replace_existing=True,
         jobstore="control",
     )
+
+    if heartbeat is not None:
+        heartbeat.set_state(
+            "running",
+            "The scheduler is running with a valid schedule.",
+        )
+        scheduler.add_job(
+            heartbeat.write,
+            trigger="interval",
+            seconds=HEARTBEAT_INTERVAL_SECONDS,
+            id="write_heartbeat",
+            max_instances=1,
+            replace_existing=True,
+            jobstore="control",
+        )
 
     now = datetime.now(tz)
     scheduled = 0
@@ -349,7 +394,10 @@ def run_scheduler_until_reload(config: SchedulerConfig) -> None:
     scheduler.start()
 
 
-def wait_for_schedule(config: SchedulerConfig) -> None:
+def wait_for_schedule(
+    config: SchedulerConfig,
+    heartbeat: SchedulerHeartbeat | None = None,
+) -> None:
     """
     Wait until the configured schedule file exists.
 
@@ -357,9 +405,17 @@ def wait_for_schedule(config: SchedulerConfig) -> None:
     schedule has been created. The service remains active and periodically
     checks for the schedule file.
     """
-    interval_seconds = config.reload_interval.total_seconds()
+    interval_seconds = min(
+        config.reload_interval.total_seconds(),
+        HEARTBEAT_INTERVAL_SECONDS,
+    )
 
     while not config.schedule_path.exists():
+        if heartbeat is not None:
+            heartbeat.set_state(
+                "waiting_for_schedule",
+                "The scheduler is waiting for a schedule file.",
+            )
         print(
             "[scheduler] No schedule file found at "
             f"{config.schedule_path}. Waiting for schedule..."
@@ -552,11 +608,12 @@ def main() -> None:
 
     args = parser.parse_args()
     config = config_from_args(args)
+    heartbeat = SchedulerHeartbeat(config.runtime_dir)
 
     while True:
         try:
-            wait_for_schedule(config)
-            run_scheduler_until_reload(config)
+            wait_for_schedule(config, heartbeat)
+            run_scheduler_until_reload(config, heartbeat)
         except KeyboardInterrupt:
             print("[scheduler] Stopping scheduler")
             raise SystemExit(0) from None
