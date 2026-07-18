@@ -277,6 +277,8 @@ def poll_schedule_for_changes(
 
     except (
         ScheduleValidationError,
+        KeyError,
+        TypeError,
         ValueError,
         FileNotFoundError,
         OSError,
@@ -372,6 +374,8 @@ def run_scheduler_until_reload(
         return
     except (
         ScheduleValidationError,
+        KeyError,
+        TypeError,
         ValueError,
         OSError,
         json.JSONDecodeError,

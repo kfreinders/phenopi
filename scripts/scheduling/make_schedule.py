@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import json
 from pathlib import Path
 import sys
@@ -282,8 +282,17 @@ def write_schedule(
     replicate_interval_seconds: int = 0,
     overwrite: bool = False,
 ) -> None:
+    try:
+        date.fromisoformat(start_date)
+    except ValueError as exc:
+        raise ValueError("--start-date must use YYYY-MM-DD format") from exc
+
     if num_days <= 0:
         raise ValueError("--num-days must be > 0")
+    if replicates <= 0:
+        raise ValueError("--replicates must be > 0")
+    if replicate_interval_seconds < 0:
+        raise ValueError("--replicate-interval-seconds must be >= 0")
 
     validate_unique_expanded_times(
         times=times,

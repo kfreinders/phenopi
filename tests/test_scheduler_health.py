@@ -1,11 +1,12 @@
 import json
+import shutil
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from gui.app import app
 from gui.services.scheduler_status import (
-    build_daily_chart,
+    build_daily_activity,
     build_schedule_overview,
     read_scheduler_status,
 )
@@ -22,6 +23,8 @@ def write_heartbeat(
     age_seconds=0,
     message="state message",
     schedule=None,
+    last_capture=None,
+    storage=None,
 ):
     path.write_text(
         json.dumps(
@@ -31,6 +34,8 @@ def write_heartbeat(
                 "state": state,
                 "message": message,
                 "schedule": schedule,
+                "last_capture": last_capture,
+                "storage": storage,
             }
         )
     )
@@ -78,6 +83,46 @@ def test_heartbeat_write_failure_is_non_fatal(tmp_path):
     assert SchedulerHeartbeat(runtime_path).write() is False
 
 
+def test_heartbeat_reports_capture_storage(tmp_path, monkeypatch):
+    usage = shutil._ntuple_diskusage(1000, 600, 400)
+    monkeypatch.setattr(shutil, "disk_usage", lambda path: usage)
+    heartbeat = SchedulerHeartbeat(tmp_path, storage_path=tmp_path / "captures")
+
+    heartbeat.write()
+
+    storage = json.loads(heartbeat.path.read_text())["storage"]
+    assert storage == {
+        "total_bytes": 1000,
+        "used_bytes": 600,
+        "free_bytes": 400,
+        "used_percent": 60.0,
+    }
+
+
+def test_heartbeat_restores_capture_for_same_schedule(tmp_path):
+    previous = {
+        "schedule_hash": "abcdef1234567890",
+        "status": "succeeded",
+    }
+    (tmp_path / "scheduler-heartbeat.json").write_text(
+        json.dumps({"last_capture": previous})
+    )
+    heartbeat = SchedulerHeartbeat(tmp_path)
+
+    heartbeat.set_state("running", "running", schedule=schedule_snapshot())
+
+    assert json.loads(heartbeat.path.read_text())["last_capture"] == previous
+
+
+def test_heartbeat_clears_capture_for_replacement_schedule(tmp_path):
+    heartbeat = SchedulerHeartbeat(tmp_path)
+    heartbeat.record_capture({"schedule_hash": "old", "status": "succeeded"})
+
+    heartbeat.set_state("running", "running", schedule=schedule_snapshot())
+
+    assert json.loads(heartbeat.path.read_text())["last_capture"] is None
+
+
 @pytest.mark.parametrize(
     ("state", "expected_status"),
     [
@@ -107,6 +152,23 @@ def test_status_marks_old_heartbeat_stale(tmp_path):
 
     assert result["status"] == "stale"
     assert result["age_seconds"] == 31.0
+
+
+def test_status_exposes_optional_capture_and_storage(tmp_path):
+    heartbeat_path = tmp_path / "heartbeat.json"
+    capture = {"status": "failed", "message": "camera error"}
+    storage = {"free_bytes": 100, "used_percent": 90.0}
+    write_heartbeat(
+        heartbeat_path,
+        state="running",
+        last_capture=capture,
+        storage=storage,
+    )
+
+    result = read_scheduler_status(heartbeat_path, now=NOW)
+
+    assert result["last_capture"] == capture
+    assert result["storage"] == storage
 
 
 def schedule_snapshot():
@@ -152,39 +214,43 @@ def test_current_calendar_day_is_highlighted_outside_capture_window(now):
     assert overview["days"][1]["status"] == "upcoming"
 
 
-def test_sparse_daily_chart_uses_full_day_marker_positions():
-    chart = build_daily_chart(["00:00", "06:00", "12:00", "23:59"])
-
-    assert chart["mode"] == "markers"
-    assert [point["percent"] for point in chart["points"][:3]] == [
-        0.0,
-        25.0,
-        50.0,
-    ]
-
-
-def test_daily_chart_switches_to_density_after_marker_limit():
-    times = [f"{hour:02d}:{minute:02d}" for hour in range(24) for minute in (0, 30)]
-
-    assert build_daily_chart(times)["mode"] == "markers"
-    assert build_daily_chart(times + ["00:15"])["mode"] == "density"
-
-
-def test_density_chart_aggregates_fifteen_minute_bins():
-    chart = build_daily_chart(
-        ["08:00", "08:01", "08:15"],
-        marker_limit=1,
+def test_daily_activity_aggregates_hours_and_window():
+    activity = build_daily_activity(
+        ["08:00", "08:30", "09:00", "09:30"],
+        replicates=3,
     )
 
-    assert len(chart["bins"]) == 96
-    assert chart["bins"][32] == {
-        "start": "08:00",
-        "end": "08:15",
-        "count": 2,
-        "height_percent": 100.0,
-    }
-    assert chart["bins"][33]["count"] == 1
-    assert chart["bins"][33]["height_percent"] == 50.0
+    assert len(activity["hours"]) == 24
+    assert activity["hours"][8]["time_point_count"] == 2
+    assert activity["hours"][8]["capture_count"] == 6
+    assert activity["hours"][9]["capture_count"] == 6
+    assert activity["hours"][8]["intensity_percent"] == 100.0
+    assert activity["window_label"] == "08:00–09:30"
+    assert activity["window_minutes"] == 90
+    assert activity["window_duration_label"] == "1 hr 30 min"
+    assert activity["peak_time_points_per_hour"] == 2
+    assert activity["peak_captures_per_hour"] == 6
+
+
+@pytest.mark.parametrize(
+    ("times", "kind", "label"),
+    [
+        ([], "empty", "No time points"),
+        (["08:00"], "single", "Single time point"),
+        (["08:00", "08:30", "09:00"], "regular", "Every 30 min"),
+        (
+            ["08:00", "08:30", "09:00", "09:30", "10:15"],
+            "typical",
+            "Typically every 30 min",
+        ),
+        (["08:00", "08:15", "09:00", "10:30"], "variable", "Variable intervals"),
+    ],
+)
+def test_daily_activity_summarizes_cadence(times, kind, label):
+    activity = build_daily_activity(times)
+
+    assert activity["cadence_kind"] == kind
+    assert activity["cadence_label"] == label
 
 
 def test_stale_status_retains_last_reported_schedule(tmp_path):
