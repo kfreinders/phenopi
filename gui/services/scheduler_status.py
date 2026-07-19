@@ -195,32 +195,14 @@ def read_scheduler_status(
 ) -> dict[str, Any]:
     """Read scheduler health and its last reported loaded schedule."""
     current_time = now or datetime.now(timezone.utc)
-
-    try:
-        payload = json.loads(heartbeat_path.read_text())
-        timestamp = datetime.fromisoformat(payload["timestamp"])
-        state = payload["state"]
-        message = payload["message"]
-        if payload.get("version") != 1 or timestamp.tzinfo is None:
-            raise ValueError("unsupported heartbeat")
-        if state not in HEARTBEAT_STATES or not isinstance(message, str):
-            raise ValueError("invalid heartbeat state")
-    except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
-        return _unavailable_status()
-
-    age_seconds = max(
-        0.0,
-        (current_time.astimezone(timezone.utc) - timestamp).total_seconds(),
+    heartbeat = _read_heartbeat(
+        heartbeat_path,
+        now=current_time,
+        stale_after=stale_after,
     )
-    if age_seconds > stale_after.total_seconds():
-        status = "stale"
-        message = "The scheduler heartbeat has stopped updating."
-    else:
-        status = {
-            "running": "healthy",
-            "waiting_for_schedule": "waiting_for_schedule",
-            "invalid_schedule": "invalid_schedule",
-        }[state]
+    if heartbeat is None:
+        return _unavailable_status()
+    payload, health = heartbeat
 
     overview = None
     schedule_error = None
@@ -232,29 +214,88 @@ def read_scheduler_status(
             schedule_error = "The loaded schedule details could not be read."
 
     return {
-        "status": status,
-        "last_heartbeat_at": timestamp.isoformat(),
-        "age_seconds": round(age_seconds, 1),
-        "message": message,
+        **health,
         "schedule": overview,
         "schedule_error": schedule_error,
-        "schedule_is_last_reported": status == "stale" and overview is not None,
+        "schedule_is_last_reported": health["status"] == "stale"
+        and overview is not None,
         "last_capture": _optional_dict(payload.get("last_capture")),
         "storage": _optional_dict(payload.get("storage")),
     }
 
 
+def read_scheduler_health(
+    heartbeat_path: Path,
+    *,
+    now: datetime | None = None,
+    stale_after: timedelta = STALE_AFTER,
+) -> dict[str, Any]:
+    """Read only the scheduler fields needed by the global health pill."""
+    heartbeat = _read_heartbeat(
+        heartbeat_path,
+        now=now or datetime.now(timezone.utc),
+        stale_after=stale_after,
+    )
+    return _unavailable_health() if heartbeat is None else heartbeat[1]
+
+
+def _read_heartbeat(
+    heartbeat_path: Path,
+    *,
+    now: datetime,
+    stale_after: timedelta,
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    try:
+        payload = json.loads(heartbeat_path.read_text())
+        timestamp = datetime.fromisoformat(payload["timestamp"])
+        state = payload["state"]
+        message = payload["message"]
+        if payload.get("version") != 1 or timestamp.tzinfo is None:
+            raise ValueError("unsupported heartbeat")
+        if state not in HEARTBEAT_STATES or not isinstance(message, str):
+            raise ValueError("invalid heartbeat state")
+    except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
+        return None
+
+    age_seconds = max(
+        0.0,
+        (now.astimezone(timezone.utc) - timestamp).total_seconds(),
+    )
+    if age_seconds > stale_after.total_seconds():
+        status = "stale"
+        message = "The scheduler heartbeat has stopped updating."
+    else:
+        status = {
+            "running": "healthy",
+            "waiting_for_schedule": "waiting_for_schedule",
+            "invalid_schedule": "invalid_schedule",
+        }[state]
+
+    return payload, {
+        "status": status,
+        "last_heartbeat_at": timestamp.isoformat(),
+        "age_seconds": round(age_seconds, 1),
+        "message": message,
+    }
+
+
 def _unavailable_status() -> dict[str, Any]:
     return {
-        "status": "unavailable",
-        "last_heartbeat_at": None,
-        "age_seconds": None,
-        "message": "No valid scheduler heartbeat is available.",
+        **_unavailable_health(),
         "schedule": None,
         "schedule_error": None,
         "schedule_is_last_reported": False,
         "last_capture": None,
         "storage": None,
+    }
+
+
+def _unavailable_health() -> dict[str, Any]:
+    return {
+        "status": "unavailable",
+        "last_heartbeat_at": None,
+        "age_seconds": None,
+        "message": "No valid scheduler heartbeat is available.",
     }
 
 

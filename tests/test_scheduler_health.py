@@ -5,10 +5,11 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from gui.app import app
-from gui.config import static_version, templates
+from gui.config import APP_DIR, static_version, templates
 from gui.services.scheduler_status import (
     build_daily_activity,
     build_schedule_overview,
+    read_scheduler_health,
     read_scheduler_status,
 )
 from scripts.scheduling.heartbeat import SchedulerHeartbeat
@@ -143,6 +144,12 @@ def test_status_maps_fresh_scheduler_states(
     assert result["status"] == expected_status
     assert result["age_seconds"] == 5.0
     assert result["message"] == "state message"
+
+    health = read_scheduler_health(heartbeat_path, now=NOW)
+    assert health == {
+        key: result[key]
+        for key in ("status", "last_heartbeat_at", "age_seconds", "message")
+    }
 
 
 def test_status_marks_old_heartbeat_stale(tmp_path):
@@ -299,11 +306,23 @@ def test_status_marks_missing_or_invalid_heartbeat_unavailable(
     assert result["last_heartbeat_at"] is None
     assert result["age_seconds"] is None
 
+    health = read_scheduler_health(heartbeat_path, now=NOW)
+    assert set(health) == {
+        "status",
+        "last_heartbeat_at",
+        "age_seconds",
+        "message",
+    }
+    assert health["status"] == "unavailable"
+
 
 def test_scheduler_status_routes_are_registered():
     assert str(app.url_path_for("scheduler_status_page")) == "/scheduler"
     assert str(app.url_path_for("scheduler_status_api")) == (
         "/api/scheduler/status"
+    )
+    assert str(app.url_path_for("scheduler_health_api")) == (
+        "/api/scheduler/health"
     )
 
 
@@ -318,3 +337,35 @@ def test_scheduler_dashboard_assets_are_cache_busted():
     assert scheduler_source.count("?v={{ static_version(") == 2
     assert base_source.count("?v={{ static_version(") == 2
     assert static_version("scheduler_health.js") > 0
+
+
+def test_page_assets_are_isolated_and_cache_busted():
+    base_source, _, _ = templates.env.loader.get_source(
+        templates.env, "base.html"
+    )
+    schedule_source, _, _ = templates.env.loader.get_source(
+        templates.env, "schedule.html"
+    )
+    camera_source, _, _ = templates.env.loader.get_source(
+        templates.env, "camera.html"
+    )
+
+    assert "visual_preview.css" not in base_source
+    assert "updateModeSections" not in base_source
+    assert "visual_preview.css" in schedule_source
+    assert "schedule.js" in schedule_source
+    assert "camera_preview.css" in camera_source
+    assert "camera_preview.js" in camera_source
+    assert schedule_source.count("?v={{ static_version(") == 2
+    assert camera_source.count("?v={{ static_version(") == 2
+
+
+def test_global_health_poll_uses_lightweight_endpoint():
+    health_script = (APP_DIR / "static" / "scheduler_health.js").read_text()
+    dashboard_script = (APP_DIR / "static" / "scheduler_status.js").read_text()
+
+    assert 'fetch("/api/scheduler/health"' in health_script
+    assert 'fetch("/api/scheduler/status"' not in health_script
+    assert 'fetch("/api/scheduler/status"' in dashboard_script
+    assert "scheduler-status-updated" in health_script
+    assert "scheduler-status-updated" in dashboard_script

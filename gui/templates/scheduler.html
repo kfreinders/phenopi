@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', path='scheduler_status.css') }}?v={{ static_version('scheduler_status.css') }}">
+{% endblock %}
+
 {% block content %}
 <section class="scheduler-page" aria-live="polite">
   <div class="scheduler-heading">
@@ -69,6 +73,8 @@
 </section>
 
 <script id="initial-scheduler-status" type="application/json">{{ scheduler_status | tojson }}</script>
-<link rel="stylesheet" href="{{ url_for('static', path='scheduler_status.css') }}?v={{ static_version('scheduler_status.css') }}">
+{% endblock %}
+
+{% block page_scripts %}
 <script src="{{ url_for('static', path='scheduler_status.js') }}?v={{ static_version('scheduler_status.js') }}" defer></script>
 {% endblock %}

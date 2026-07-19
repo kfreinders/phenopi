@@ -1,4 +1,7 @@
 {% extends "base.html" %}
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', path='visual_preview.css') }}?v={{ static_version('visual_preview.css') }}">
+{% endblock %}
 {% block content %}
 <section class="card">
   <div class="card-header">
@@ -111,4 +114,8 @@
 
 {% include "schedule_preview.html" %}
 
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{{ url_for('static', path='schedule.js') }}?v={{ static_version('schedule.js') }}" defer></script>
 {% endblock %}

@@ -19,7 +19,7 @@ function renderSchedulerHealth(data) {
 
 async function refreshSchedulerHealth() {
   try {
-    const response = await fetch("/api/scheduler/status", { cache: "no-store" });
+    const response = await fetch("/api/scheduler/health", { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     renderSchedulerHealth(await response.json());
   } catch (error) {
@@ -35,7 +35,10 @@ async function refreshSchedulerHealth() {
 const initialSchedulerStatus = document.getElementById("initial-scheduler-status");
 if (initialSchedulerStatus) {
   renderSchedulerHealth(JSON.parse(initialSchedulerStatus.textContent));
+  document.addEventListener("scheduler-status-updated", (event) => {
+    renderSchedulerHealth(event.detail);
+  });
 } else {
   refreshSchedulerHealth();
+  window.setInterval(refreshSchedulerHealth, 5000);
 }
-window.setInterval(refreshSchedulerHealth, 5000);

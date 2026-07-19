@@ -107,7 +107,11 @@ function renderSchedule(data) {
   byId("replicate-burst").replaceChildren(...schedule.replicate_offsets.map((replicate) => { const item = document.createElement("div"); const dot = document.createElement("strong"); dot.textContent = replicate.number; const offset = document.createElement("span"); offset.textContent = `+${replicate.offset_seconds}s`; item.append(dot, offset); return item; }));
 }
 
-function render(data) { renderHealth(data); renderSchedule(data); }
+function render(data) {
+  renderHealth(data);
+  renderSchedule(data);
+  document.dispatchEvent(new CustomEvent("scheduler-status-updated", { detail: data }));
+}
 
 async function refreshStatus() {
   try {

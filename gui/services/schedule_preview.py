@@ -6,13 +6,41 @@ import json
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel
+
 from gui.config import DEFAULT_SCHEDULE_PATH, PROJECT_ROOT
 from scripts.scheduling.make_schedule import (
     centered_time_range,
     every_n_minutes,
     every_n_minutes_for_duration,
     validate_unique_expanded_times,
+    write_schedule,
 )
+
+
+class ScheduleFormData(BaseModel):
+    """Typed representation of the schedule builder's submitted fields."""
+
+    mode: str
+    start_date: str
+    num_days: int
+    replicates: int
+    replicate_interval_seconds: int
+    output: str
+    overwrite: bool = False
+    every_start: str = "08:00"
+    every_end: str = "19:30"
+    every_step_minutes: int = 30
+    duration_start: str = "08:00"
+    duration_minutes: int = 720
+    duration_step_minutes: int = 30
+    centered_center: str = "12:00"
+    centered_before_minutes: int = 60
+    centered_after_minutes: int = 60
+    centered_step_minutes: int = 15
+
+    def preview_arguments(self) -> dict[str, Any]:
+        return self.model_dump()
 
 
 @dataclass
@@ -136,10 +164,6 @@ def form_defaults() -> dict[str, Any]:
     }
 
 
-def parse_bool_checkbox(value: str | None) -> bool:
-    return value == "on"
-
-
 def resolve_output_path(output: str) -> Path:
     path = Path(output).expanduser()
 
@@ -147,6 +171,21 @@ def resolve_output_path(output: str) -> Path:
         return path
 
     return PROJECT_ROOT / path
+
+
+def save_schedule_preview(preview: SchedulePreview) -> Path:
+    """Persist a validated preview and return its resolved output path."""
+    output_path = resolve_output_path(preview.output)
+    write_schedule(
+        output=output_path,
+        start_date=preview.start_date,
+        num_days=preview.num_days,
+        times=preview.times,
+        replicates=preview.replicates,
+        replicate_interval_seconds=preview.replicate_interval_seconds,
+        overwrite=preview.overwrite,
+    )
+    return output_path
 
 
 def build_schedule_preview(

@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', path='camera_preview.css') }}?v={{ static_version('camera_preview.css') }}">
+{% endblock %}
+
 <!-- TODO: Use actual Raspberry Pi camera here instead of webcam -->
 {% block content %}
 <section class="card camera-page">
@@ -63,6 +67,8 @@
   </div>
 </section>
 
-<link rel="stylesheet" href="{{ url_for('static', path='camera_preview.css') }}">
-<script src="{{ url_for('static', path='camera_preview.js') }}" defer></script>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{{ url_for('static', path='camera_preview.js') }}?v={{ static_version('camera_preview.js') }}" defer></script>
 {% endblock %}
