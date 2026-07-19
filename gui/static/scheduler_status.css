@@ -2,16 +2,8 @@
 .scheduler-heading { display: flex; justify-content: space-between; align-items: end; gap: 1rem; }
 .scheduler-heading h2 { margin: .15rem 0; font-size: 1.8rem; }
 .scheduler-heading p { margin: 0; color: var(--muted); }
-.eyebrow, .scheduler-label { color: var(--blue); font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.scheduler-health { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 1rem; padding: 1.2rem; border: 1px solid; border-radius: 1rem; background: white; }
-.scheduler-status-indicator { width: 1rem; height: 1rem; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 .35rem color-mix(in srgb, currentColor 15%, transparent); }
-.health-copy strong { display: block; margin-top: .15rem; font-size: 1.25rem; }
-.health-copy p { margin: .3rem 0 0; color: inherit; }
-.health-freshness { font-size: .8rem; font-weight: 700; white-space: nowrap; }
-.scheduler-health--healthy { color: #067647; border-color: #abefc6; background: #ecfdf3; }
-.scheduler-health--waiting_for_schedule { color: #175cd3; border-color: #b2ccff; background: #eff8ff; }
-.scheduler-health--invalid_schedule, .scheduler-health--stale { color: #93370d; border-color: #fedf89; background: #fffaeb; }
-.scheduler-health--unavailable { color: var(--red); border-color: #fecdca; background: #fef3f2; }
+.eyebrow { color: var(--blue); font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.health-alert { padding: .8rem 1rem; border: 1px solid #fecdca; border-radius: .8rem; color: var(--red); background: #fef3f2; font-weight: 650; }
 .schedule-warning { padding: .9rem 1rem; border: 1px solid #fedf89; border-radius: .8rem; color: #93370d; background: #fffaeb; font-weight: 650; }
 .schedule-empty { display: grid; justify-items: center; padding: 3rem; text-align: center; }
 .schedule-empty h3 { margin: .5rem 0; }
@@ -82,5 +74,5 @@
 .replicate-burst span { color: var(--muted); font-size: .72rem; font-weight: 700; }
 [hidden] { display: none !important; }
 @media (max-width: 1050px) { .metric-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 760px) { .scheduler-heading, .schedule-hero { align-items: flex-start; flex-direction: column; } .scheduler-health { grid-template-columns: auto 1fr; } .health-freshness { grid-column: 1 / -1; } .dashboard-grid { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .scheduler-heading, .schedule-hero { align-items: flex-start; flex-direction: column; } .dashboard-grid { grid-template-columns: 1fr; } }
 @media (max-width: 440px) { .metric-grid, .activity-summary { grid-template-columns: 1fr; } }

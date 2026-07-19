@@ -1,6 +1,4 @@
 const byId = (id) => document.getElementById(id);
-const statusCard = byId("scheduler-status-card");
-const labels = { healthy: "Healthy", waiting_for_schedule: "Waiting for schedule", invalid_schedule: "Invalid schedule", stale: "Stale heartbeat", unavailable: "Unavailable" };
 const lifecycleLabels = { upcoming: "Upcoming", active: "Active", finished: "Finished", empty: "Empty schedule" };
 
 function formatDateTime(value, options = {}) {
@@ -27,12 +25,10 @@ function formatBytes(value) {
 }
 
 function renderHealth(data) {
-  statusCard.className = `scheduler-health scheduler-health--${data.status}`;
-  byId("scheduler-status").textContent = labels[data.status] ?? data.status;
-  byId("scheduler-message").textContent = data.message;
-  const freshness = byId("health-freshness");
-  freshness.textContent = data.age_seconds === null ? "No heartbeat received" : `Heartbeat ${Math.round(data.age_seconds)} seconds ago`;
-  freshness.title = data.last_heartbeat_at ? `Last heartbeat: ${formatDateTime(data.last_heartbeat_at)}` : "";
+  const alert = byId("health-alert");
+  const showAlert = data.status === "stale" || data.status === "unavailable";
+  alert.hidden = !showAlert;
+  alert.textContent = showAlert ? data.message : "";
 }
 
 function renderSchedule(data) {

@@ -26,8 +26,17 @@ body {
   color: white;
   padding: 1.6rem clamp(1rem, 4vw, 3rem);
 }
+.topbar-inner { display: flex; align-items: center; justify-content: space-between; gap: 1rem; max-width: 1200px; margin: 0 auto; }
 .topbar h1 { margin: 0; font-size: 2rem; }
 .topbar p { margin: 0.2rem 0 0; opacity: 0.85; }
+.status-pill { display: inline-flex; align-items: center; gap: .45rem; padding: .48rem .7rem; border: 1px solid; border-radius: 999px; white-space: nowrap; font-size: .8rem; text-decoration: none; }
+.status-pill-dot { width: .55rem; height: .55rem; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 .18rem color-mix(in srgb, currentColor 16%, transparent); }
+.status-pill small { padding-left: .4rem; border-left: 1px solid currentColor; opacity: .72; font-weight: 750; }
+.status-pill--loading { color: #344054; border-color: #d0d5dd; background: #f9fafb; }
+.status-pill--healthy { color: #067647; border-color: #abefc6; background: #ecfdf3; }
+.status-pill--waiting_for_schedule { color: #175cd3; border-color: #b2ccff; background: #eff8ff; }
+.status-pill--invalid_schedule, .status-pill--stale { color: #93370d; border-color: #fedf89; background: #fffaeb; }
+.status-pill--unavailable { color: var(--red); border-color: #fecdca; background: #fef3f2; }
 
 .layout {
   max-width: 1200px;
@@ -206,6 +215,7 @@ pre {
 code { background: #eef2f7; padding: 0.1rem 0.25rem; border-radius: 0.25rem; }
 
 @media (max-width: 760px) {
+  .topbar-inner { align-items: flex-start; flex-direction: column; }
   .two-column { grid-template-columns: 1fr; }
   .output-grid { grid-template-columns: 1fr; }
 }

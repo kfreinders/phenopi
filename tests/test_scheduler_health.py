@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from gui.app import app
+from gui.config import static_version, templates
 from gui.services.scheduler_status import (
     build_daily_activity,
     build_schedule_overview,
@@ -304,3 +305,16 @@ def test_scheduler_status_routes_are_registered():
     assert str(app.url_path_for("scheduler_status_api")) == (
         "/api/scheduler/status"
     )
+
+
+def test_scheduler_dashboard_assets_are_cache_busted():
+    scheduler_source, _, _ = templates.env.loader.get_source(
+        templates.env, "scheduler.html"
+    )
+    base_source, _, _ = templates.env.loader.get_source(
+        templates.env, "base.html"
+    )
+
+    assert scheduler_source.count("?v={{ static_version(") == 2
+    assert base_source.count("?v={{ static_version(") == 2
+    assert static_version("scheduler_health.js") > 0

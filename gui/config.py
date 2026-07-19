@@ -25,3 +25,11 @@ SCHEDULER_HEARTBEAT_PATH = (
 )
 
 templates = Jinja2Templates(directory=APP_DIR / "templates")
+
+
+def static_version(filename: str) -> int:
+    """Return a cache key that changes with a static asset."""
+    return (APP_DIR / "static" / filename).stat().st_mtime_ns
+
+
+templates.env.globals["static_version"] = static_version

@@ -10,15 +10,7 @@
     </div>
   </div>
 
-  <section id="scheduler-status-card" class="scheduler-health">
-    <span id="scheduler-status-indicator" class="scheduler-status-indicator"></span>
-    <div class="health-copy">
-      <span class="scheduler-label">Scheduler health</span>
-      <strong id="scheduler-status">Loading</strong>
-      <p id="scheduler-message">Reading the scheduler heartbeat…</p>
-    </div>
-    <span id="health-freshness" class="health-freshness">Checking heartbeat…</span>
-  </section>
+  <div id="health-alert" class="health-alert" role="alert" hidden></div>
 
   <div id="schedule-warning" class="schedule-warning" hidden></div>
 
@@ -77,6 +69,6 @@
 </section>
 
 <script id="initial-scheduler-status" type="application/json">{{ scheduler_status | tojson }}</script>
-<link rel="stylesheet" href="{{ url_for('static', path='scheduler_status.css') }}">
-<script src="{{ url_for('static', path='scheduler_status.js') }}" defer></script>
+<link rel="stylesheet" href="{{ url_for('static', path='scheduler_status.css') }}?v={{ static_version('scheduler_status.css') }}">
+<script src="{{ url_for('static', path='scheduler_status.js') }}?v={{ static_version('scheduler_status.js') }}" defer></script>
 {% endblock %}
