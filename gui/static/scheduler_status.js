@@ -26,7 +26,7 @@ function formatBytes(value) {
 
 function renderHealth(data) {
   const alert = byId("health-alert");
-  const showAlert = data.status === "stale" || data.status === "unavailable";
+  const showAlert = data.status === "unavailable";
   alert.hidden = !showAlert;
   alert.textContent = showAlert ? data.message : "";
 }
@@ -37,7 +37,7 @@ function renderSchedule(data) {
   warning.hidden = true;
   if (data.schedule_error || data.schedule_is_last_reported || data.status === "invalid_schedule") {
     warning.hidden = false;
-    warning.textContent = data.schedule_error ?? (data.schedule_is_last_reported ? "Showing the schedule last reported by the scheduler. Live state cannot currently be confirmed." : "The edited schedule was rejected. The scheduler is continuing with the valid schedule shown below.");
+    warning.textContent = data.schedule_error ?? (data.schedule_is_last_reported ? "Showing the last reported schedule; live state cannot currently be confirmed." : "The edited schedule was rejected. The scheduler is continuing with the valid schedule shown below.");
   }
   byId("schedule-empty").hidden = Boolean(schedule);
   byId("schedule-dashboard").hidden = !schedule;

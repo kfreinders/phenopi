@@ -2,7 +2,7 @@ const schedulerHealthLabels = {
   healthy: "Healthy",
   waiting_for_schedule: "Waiting for schedule",
   invalid_schedule: "Invalid schedule",
-  stale: "Stale heartbeat",
+  stale: "Scheduler not responding",
   unavailable: "Unavailable",
 };
 
