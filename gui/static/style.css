@@ -58,11 +58,28 @@ body {
   color: var(--text);
   text-decoration: none;
   font-weight: 650;
+  transition: transform 110ms ease-out, background-color 110ms ease-out, border-color 110ms ease-out, box-shadow 110ms ease-out;
+}
+.tab[href]:hover,
+.tab[href]:focus-visible {
+  border-color: #84adff;
+  background: #edf6ff;
+  box-shadow: 0 .2rem .55rem rgb(15 95 185 / 20%);
+  transform: translateY(-1px) scale(1.025);
+}
+.tab[href]:focus-visible {
+  outline: 3px solid rgb(132 173 255 / 55%);
+  outline-offset: 2px;
 }
 .tab.active {
   background: var(--blue);
   color: white;
   border-color: var(--blue);
+}
+.tab.active:hover,
+.tab.active:focus-visible {
+  background: #0b54a5;
+  border-color: #84adff;
 }
 .tab.disabled {
   color: var(--muted);
@@ -218,4 +235,10 @@ code { background: #eef2f7; padding: 0.1rem 0.25rem; border-radius: 0.25rem; }
   .topbar-inner { align-items: flex-start; flex-direction: column; }
   .two-column { grid-template-columns: 1fr; }
   .output-grid { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab { transition: none; }
+  .tab[href]:hover,
+  .tab[href]:focus-visible { transform: none; }
 }
