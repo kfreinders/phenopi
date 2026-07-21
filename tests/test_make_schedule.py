@@ -102,6 +102,7 @@ def test_write_schedule_creates_expected_json(tmp_path):
         "replicate_interval_seconds": 15,
         "times": ["09:00", "10:00"],
     }
+    assert list(output.parent.iterdir()) == [output]
 
 
 @pytest.mark.parametrize(

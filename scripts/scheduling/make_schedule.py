@@ -3,8 +3,10 @@ from __future__ import annotations
 import argparse
 from datetime import date, datetime, timedelta
 import json
+import os
 from pathlib import Path
 import sys
+import tempfile
 
 from .schedule_validation import validate_unique_values
 
@@ -313,8 +315,35 @@ def write_schedule(
         "times": times,
     }
 
+    atomic_write_text(output, schedule_json(schedule))
+
+
+def schedule_json(schedule: dict) -> str:
+    """Serialize a schedule in the canonical on-disk representation."""
+    return json.dumps(schedule, indent=2) + "\n"
+
+
+def atomic_write_text(output: Path, contents: str) -> None:
+    """Atomically replace a text file using a temporary sibling file."""
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(schedule, indent=2) + "\n")
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            dir=output.parent,
+            prefix=f".{output.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary:
+            temporary.write(contents)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+            temporary_path = Path(temporary.name)
+        temporary_path.replace(output)
+    except Exception:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+        raise
 
 
 def parse_args() -> argparse.Namespace:
