@@ -336,12 +336,13 @@ def jobstore_path_for_schedule(
 def run_scheduler_until_reload(
     config: SchedulerConfig,
     heartbeat: SchedulerHeartbeat | None = None,
-) -> None:
+) -> bool:
     """
     Start APScheduler for the current schedule.
 
-    The function returns when the scheduler is shut down, for example because
-    the schedule polling job detected a valid schedule change.
+    The function returns ``True`` after a scheduler was started and later shut
+    down. It returns ``False`` when no valid schedule could be loaded, allowing
+    the outer service loop to remain alive and retry.
     """
     tz = config.tz
 
@@ -371,7 +372,7 @@ def run_scheduler_until_reload(
             "[scheduler] Schedule file disappeared before it could be loaded. "
             "Waiting for schedule..."
         )
-        return
+        return False
     except (
         ScheduleValidationError,
         KeyError,
@@ -380,14 +381,18 @@ def run_scheduler_until_reload(
         OSError,
         json.JSONDecodeError,
     ) as exc:
+        error_message = describe_schedule_load_error(exc)
         if heartbeat is not None:
             heartbeat.set_state(
                 "invalid_schedule",
-                f"The scheduler could not load the schedule: {exc}",
+                f"The scheduler could not load the schedule: {error_message}",
                 schedule=None,
             )
-        print(f"Error: {exc}", file=sys.stderr)
-        raise SystemExit(2) from None
+        print(
+            f"[scheduler] Invalid schedule: {error_message}",
+            flush=True,
+        )
+        return False
 
     scheduler = make_scheduler(config, jobstore_path)
 
@@ -462,6 +467,7 @@ def run_scheduler_until_reload(
 
     print("[scheduler] Starting scheduler")
     scheduler.start()
+    return True
 
 
 def wait_for_schedule(
@@ -492,6 +498,20 @@ def wait_for_schedule(
             f"{config.schedule_path}. Waiting for schedule..."
         )
         time_module.sleep(interval_seconds)
+
+
+def describe_schedule_load_error(exc: Exception) -> str:
+    """Turn low-level schedule parsing failures into actionable messages."""
+    if isinstance(exc, json.JSONDecodeError):
+        if not exc.doc.strip():
+            return "The schedule file is empty."
+        return (
+            "The schedule file does not contain valid JSON "
+            f"(line {exc.lineno}, column {exc.colno})."
+        )
+    if isinstance(exc, KeyError):
+        return f"The schedule is missing required field {exc.args[0]!r}."
+    return str(exc)
 
 
 def delete_stale_jobstores(
@@ -687,11 +707,22 @@ def main() -> None:
     while True:
         try:
             wait_for_schedule(config, heartbeat)
-            run_scheduler_until_reload(config, heartbeat)
+            scheduler_started = run_scheduler_until_reload(config, heartbeat)
         except KeyboardInterrupt:
             print("[scheduler] Stopping scheduler")
             raise SystemExit(0) from None
 
+        if not scheduler_started:
+            retry_seconds = min(
+                config.reload_interval.total_seconds(),
+                HEARTBEAT_INTERVAL_SECONDS,
+            )
+            print(
+                f"[scheduler] Retrying schedule load in {retry_seconds:g} seconds",
+                flush=True,
+            )
+            time_module.sleep(retry_seconds)
+            continue
         print("[scheduler] Scheduler stopped; reloading schedule")
 
 

@@ -311,23 +311,29 @@ def test_poll_schedule_reloads_valid_update(scheduler_config):
 
 
 @pytest.mark.parametrize(
-    "contents",
-    ["{}", '{"start_date": null, "num_days": 1, "times": null}'],
+    ("contents", "expected_message"),
+    [
+        ("", "schedule file is empty"),
+        ("not json", "does not contain valid JSON"),
+        ("{}", "missing required field 'start_date'"),
+        ('{"start_date": null, "num_days": 1, "times": null}', "isoformat"),
+    ],
 )
 def test_malformed_schedule_is_reported_through_heartbeat(
-    scheduler_config, contents
+    scheduler_config, contents, expected_message, capsys
 ):
     scheduler_config.schedule_path.write_text(contents)
     heartbeat = FakeHeartbeat()
 
-    with pytest.raises(SystemExit) as exc_info:
-        scheduler_module.run_scheduler_until_reload(
-            scheduler_config,
-            heartbeat,
-        )
+    scheduler_started = scheduler_module.run_scheduler_until_reload(
+        scheduler_config,
+        heartbeat,
+    )
 
-    assert exc_info.value.code == 2
+    assert scheduler_started is False
     assert heartbeat.states[-1][0] == "invalid_schedule"
+    assert expected_message in heartbeat.states[-1][1]
+    assert expected_message in capsys.readouterr().out
 
 
 def test_scheduler_setup_adds_control_and_future_capture_jobs(
