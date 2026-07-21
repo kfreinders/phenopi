@@ -6,6 +6,111 @@
   background: #ffffff;
 }
 
+.workflow-steps {
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  list-style: none;
+}
+
+.workflow-step {
+  position: relative;
+  display: grid;
+  grid-template-rows: 1.9rem auto;
+  justify-items: start;
+  gap: 0.4rem;
+  color: var(--muted);
+}
+
+.workflow-step:not(:last-child)::after,
+.workflow-step:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  top: 0.9rem;
+  right: -0.95rem;
+  left: 1.9rem;
+  height: 2px;
+  transform-origin: left;
+}
+
+.workflow-step:not(:last-child)::after {
+  background: var(--line);
+}
+
+.workflow-step:not(:last-child)::before {
+  z-index: 1;
+  background: #12b76a;
+  transform: scaleX(0);
+}
+
+.workflow-step > span {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  background: var(--bg);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.workflow-step--current { color: var(--blue-dark); }
+.workflow-step--current > span { color: white; border-color: var(--blue); background: var(--blue); }
+.workflow-step--complete { color: #067647; }
+.workflow-step--complete > span { color: white; border-color: #12b76a; background: #12b76a; }
+.workflow-step--complete::before { animation: complete-workflow-step 420ms cubic-bezier(.2, .8, .2, 1) forwards; }
+@keyframes complete-workflow-step { to { transform: scaleX(1); } }
+
+.workflow-heading { margin: 0 0 1.25rem; }
+.workflow-heading .eyebrow { color: var(--blue); font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.workflow-heading h2 { margin: .2rem 0; }
+.workflow-heading p { margin: 0; color: var(--muted); }
+
+.comparison-card { margin-bottom: 0; }
+.comparison-card h3, .review-actions h3, .activation-confirmation h3 { margin: 0; }
+.comparison-table { overflow: hidden; border: 1px solid var(--line); border-radius: .8rem; }
+.comparison-row { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 1rem; padding: .7rem .85rem; }
+.comparison-row + .comparison-row { border-top: 1px solid var(--line); }
+.comparison-row--header { color: var(--muted); background: #f8fafc; font-size: .75rem; text-transform: uppercase; }
+.comparison-row--changed { background: #fffaeb; }
+.comparison-row--changed .comparison-draft { color: #93370d; }
+
+.schedule-match-notice { margin-bottom: 1.25rem; padding: 1rem 1.15rem; border: 1px solid #abefc6; border-radius: .85rem; color: #05603a; background: #ecfdf3; }
+.schedule-match-notice strong { display: block; }
+.schedule-match-notice p { margin: .25rem 0 0; color: #067647; }
+
+.activation-confirmation { margin-bottom: 1.25rem; padding: 1.2rem; border: 1px solid #f79009; border-radius: 1rem; background: #fffaeb; color: #7a2e0e; }
+.activation-confirmation p { margin: .4rem 0 1rem; }
+.confirmation-check { flex-direction: row; align-items: flex-start; padding: .8rem; border-radius: .7rem; background: rgb(255 255 255 / 65%); }
+.danger-button { background: var(--red); }
+
+.review-actions { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; margin-top: 1.25rem; }
+.review-actions p { margin: .3rem 0 0; }
+.review-action-buttons, .activation-actions { display: flex; align-items: center; justify-content: flex-end; gap: .7rem; flex-wrap: wrap; }
+.review-action-buttons form { margin: 0; }
+.button-link { display: inline-flex; align-items: center; justify-content: center; padding: .8rem 1rem; border: 1px solid var(--blue); border-radius: .65rem; color: white; background: var(--blue); text-decoration: none; font-weight: 750; }
+.button-link.secondary { color: var(--blue-dark); border-color: #b9d5ee; background: var(--surface-soft); }
+.text-button { color: var(--red); background: transparent; }
+.blocked-copy { color: var(--red) !important; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+
+.activation-status { display: grid; justify-items: center; gap: 1rem; padding: 3rem; text-align: center; }
+.activation-status h2 { margin: .2rem 0; }
+.activation-status p { max-width: 44rem; margin: 0; }
+.activation-status .eyebrow { color: var(--blue); font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.activation-icon { display: grid; place-items: center; width: 4rem; height: 4rem; border-radius: 50%; color: #175cd3; background: #eff8ff; font-size: 1.8rem; }
+.activation-icon--waiting { animation: activation-pulse 1.4s ease-in-out infinite; }
+.activation-icon--confirmed { color: #067647; background: #dcfae6; }
+.activation-icon--rejected { color: var(--red); background: #fef3f2; }
+@keyframes activation-pulse { 50% { transform: scale(1.08); box-shadow: 0 0 0 .55rem rgb(46 144 250 / 12%); } }
+
 .preview-header {
   display: flex;
   justify-content: space-between;
@@ -198,30 +303,6 @@
   font-weight: 700;
 }
 
-.json-details {
-  margin-top: 1rem;
-  border: 1px solid #d6e4f2;
-  border-radius: 0.85rem;
-  background: #f8fbff;
-}
-
-.json-details summary {
-  cursor: pointer;
-  padding: 0.85rem 1rem;
-  font-weight: 800;
-  color: #172033;
-}
-
-.json-details pre {
-  margin: 0;
-  padding: 1rem;
-  border-top: 1px solid #d6e4f2;
-  overflow: auto;
-  border-radius: 0 0 0.85rem 0.85rem;
-  background: #111827;
-  color: #e5e7eb;
-}
-
 @media (max-width: 950px) {
   .summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -239,5 +320,20 @@
     width: 100%;
     text-align: left;
   }
+
+  .workflow-step { font-size: .78rem; }
+  .review-actions { align-items: flex-start; flex-direction: column; }
+  .review-action-buttons { justify-content: flex-start; }
 }
 
+@media (max-width: 560px) {
+  .workflow-step strong { display: none; }
+  .comparison-row { grid-template-columns: 1fr 1fr; gap: .35rem .7rem; }
+  .comparison-row > :first-child { grid-column: 1 / -1; }
+  .comparison-row--header { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activation-icon--waiting { animation: none; }
+  .workflow-step--complete::before { animation: none; transform: scaleX(1); }
+}

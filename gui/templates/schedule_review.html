@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', path='visual_preview.css') }}?v={{ static_version('visual_preview.css') }}">
+{% endblock %}
+
+{% block content %}
+{% include "schedule_steps.html" %}
+
+<section class="workflow-heading">
+  <span class="eyebrow">Draft schedule</span>
+  <h2>Review before activation</h2>
+  <p>Step 2: verify the complete schedule. Nothing changes in the scheduler until you activate this draft.</p>
+</section>
+
+{% if already_active %}
+<section class="schedule-match-notice" role="status">
+  <strong>This schedule is already active</strong>
+  <p>The reviewed draft is identical to the schedule currently loaded by the scheduler. No activation is needed.</p>
+</section>
+{% endif %}
+
+{% if requires_replacement_confirmation %}
+<section class="activation-confirmation" role="alert">
+  <h3>Replace the schedule during an active experiment?</h3>
+  <p>The scheduler is currently running this experiment. Activating the draft will replace its remaining planned captures.</p>
+  <form method="post" action="/schedule/activate">
+    <input type="hidden" name="draft_hash" value="{{ draft.schedule_hash }}">
+    <label class="confirmation-check">
+      <input type="checkbox" name="confirm_active_replacement" required>
+      I understand that this changes the remaining captures in the active experiment.
+    </label>
+    <div class="actions">
+      <a class="button-link secondary" href="/schedule/review">Cancel</a>
+      <button type="submit" class="danger-button">Replace active schedule</button>
+    </div>
+  </form>
+</section>
+{% endif %}
+
+<section class="comparison-card card">
+  <div class="card-header">
+    <div>
+      <h3>{% if comparison.has_active_schedule %}Changes from active schedule{% else %}New schedule{% endif %}</h3>
+      <p>{% if comparison.has_active_schedule %}Changed values are highlighted.{% else %}No schedule is currently loaded by the scheduler.{% endif %}</p>
+    </div>
+  </div>
+  <div class="comparison-table" role="table" aria-label="Active and draft schedule comparison">
+    <div class="comparison-row comparison-row--header" role="row">
+      <strong role="columnheader">Setting</strong><strong role="columnheader">Active</strong><strong role="columnheader">Draft</strong>
+    </div>
+    {% for row in comparison.rows %}
+    <div class="comparison-row{% if row.changed %} comparison-row--changed{% endif %}" role="row">
+      <span role="cell">{{ row.label }}</span><span role="cell">{{ row.active if row.active is not none else '—' }}</span><span class="comparison-draft" role="cell">{{ row.draft }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+{% include "schedule_preview.html" %}
+
+<section class="review-actions card">
+  <div>
+    <h3>Ready to activate?</h3>
+    {% if already_active %}
+      <p>This draft matches the schedule already loaded by the scheduler.</p>
+    {% elif can_activate %}
+      <p>The scheduler is responding. Activation will update its configured schedule and then wait for confirmation.</p>
+    {% else %}
+      <p class="blocked-copy">The scheduler is not responding. Activation is blocked until it can confirm the new schedule.</p>
+    {% endif %}
+  </div>
+  <div class="review-action-buttons">
+    <form method="post" action="/schedule/draft/discard">
+      <button type="submit" class="text-button">Discard draft</button>
+    </form>
+    <a class="button-link secondary" href="/schedule/edit">Edit draft</a>
+    <form method="post" action="/schedule/activate">
+      <input type="hidden" name="draft_hash" value="{{ draft.schedule_hash }}">
+      <button type="submit"{% if not can_activate or already_active or requires_replacement_confirmation %} disabled{% endif %}>{% if already_active %}Already active{% else %}Activate schedule{% endif %}</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

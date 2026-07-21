@@ -3,11 +3,12 @@
 <link rel="stylesheet" href="{{ url_for('static', path='visual_preview.css') }}?v={{ static_version('visual_preview.css') }}">
 {% endblock %}
 {% block content %}
+{% include "schedule_steps.html" %}
 <section class="card">
   <div class="card-header">
     <div>
       <h2>Schedule builder</h2>
-      <p>Create and preview Phenopi <code>schedule.json</code> files.</p>
+      <p>Step 1: configure when Phenopi should capture images.</p>
     </div>
   </div>
 
@@ -92,27 +93,11 @@
       </div>
     </fieldset>
 
-    <fieldset>
-      <legend>Output</legend>
-      <div class="grid output-grid">
-        <label>Output path on Raspberry Pi
-          <input type="text" name="output" value="{{ form.output }}" required>
-        </label>
-        <label class="checkbox-label">
-          <input type="checkbox" name="overwrite" {% if form.overwrite %}checked{% endif %}>
-          Overwrite existing file
-        </label>
-      </div>
-    </fieldset>
-
     <div class="actions">
-      <button formaction="/schedule/preview" type="submit" class="secondary">Preview</button>
-      <button formaction="/schedule/save" type="submit">Save schedule.json</button>
+      <button formaction="/schedule/preview" type="submit">Continue to review</button>
     </div>
   </form>
 </section>
-
-{% include "schedule_preview.html" %}
 
 {% endblock %}
 

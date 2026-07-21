@@ -1,21 +1,26 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
-import json
+from datetime import date, datetime, timedelta, timezone
+import hashlib
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
 
-from gui.config import DEFAULT_SCHEDULE_PATH, PROJECT_ROOT
+from gui.config import DEFAULT_SCHEDULE_PATH, SCHEDULE_DRAFT_PATH
 from scripts.scheduling.make_schedule import (
+    atomic_write_text,
     centered_time_range,
     every_n_minutes,
     every_n_minutes_for_duration,
+    schedule_json,
     validate_unique_expanded_times,
     write_schedule,
 )
+
+
+DRAFT_VERSION = 1
 
 
 class ScheduleFormData(BaseModel):
@@ -26,8 +31,6 @@ class ScheduleFormData(BaseModel):
     num_days: int
     replicates: int
     replicate_interval_seconds: int
-    output: str
-    overwrite: bool = False
     every_start: str = "08:00"
     every_end: str = "19:30"
     every_step_minutes: int = 30
@@ -51,8 +54,6 @@ class SchedulePreview:
     times: list[str]
     replicates: int
     replicate_interval_seconds: int
-    output: str
-    overwrite: bool
 
     @property
     def daily_time_points(self) -> int:
@@ -128,10 +129,6 @@ class SchedulePreview:
             for time in self.times
         ]
 
-    @property
-    def json_text(self) -> str:
-        return json.dumps(self.as_schedule_dict(), indent=2)
-
     def as_schedule_dict(self) -> dict[str, Any]:
         return {
             "start_date": self.start_date,
@@ -149,8 +146,6 @@ def form_defaults() -> dict[str, Any]:
         "num_days": 14,
         "replicates": 3,
         "replicate_interval_seconds": 30,
-        "output": str(DEFAULT_SCHEDULE_PATH.relative_to(PROJECT_ROOT)),
-        "overwrite": True,
         "every_start": "08:00",
         "every_end": "19:30",
         "every_step_minutes": 30,
@@ -164,28 +159,139 @@ def form_defaults() -> dict[str, Any]:
     }
 
 
-def resolve_output_path(output: str) -> Path:
-    path = Path(output).expanduser()
+class ScheduleDraft(BaseModel):
+    """A persisted, reviewed schedule and the form that generated it."""
 
-    if path.is_absolute():
-        return path
+    version: int = DRAFT_VERSION
+    created_at: str
+    form: ScheduleFormData
+    schedule: dict[str, Any]
+    schedule_hash: str
 
-    return PROJECT_ROOT / path
+
+@dataclass(frozen=True)
+class ScheduleComparison:
+    rows: list[dict[str, Any]]
+    has_active_schedule: bool
+    changed: bool
 
 
-def save_schedule_preview(preview: SchedulePreview) -> Path:
-    """Persist a validated preview and return its resolved output path."""
-    output_path = resolve_output_path(preview.output)
+def persist_schedule_draft(
+    form: ScheduleFormData,
+    path: Path = SCHEDULE_DRAFT_PATH,
+) -> ScheduleDraft:
+    preview = build_schedule_preview(**form.preview_arguments())
+    schedule = preview.as_schedule_dict()
+    draft = ScheduleDraft(
+        created_at=datetime.now(timezone.utc).isoformat(),
+        form=form,
+        schedule=schedule,
+        schedule_hash=_schedule_hash(schedule),
+    )
+    atomic_write_text(path, draft.model_dump_json(indent=2) + "\n")
+    return draft
+
+
+def load_schedule_draft(
+    path: Path = SCHEDULE_DRAFT_PATH,
+) -> tuple[ScheduleDraft, SchedulePreview]:
+    try:
+        draft = ScheduleDraft.model_validate_json(path.read_text())
+    except (OSError, ValueError) as exc:
+        raise ValueError("The saved schedule draft could not be read.") from exc
+    if draft.version != DRAFT_VERSION:
+        raise ValueError("The saved schedule draft uses an unsupported version.")
+    preview = build_schedule_preview(**draft.form.preview_arguments())
+    if preview.as_schedule_dict() != draft.schedule:
+        raise ValueError("The saved schedule draft is inconsistent.")
+    if _schedule_hash(draft.schedule) != draft.schedule_hash:
+        raise ValueError("The saved schedule draft has changed unexpectedly.")
+    return draft, preview
+
+
+def discard_schedule_draft(path: Path = SCHEDULE_DRAFT_PATH) -> None:
+    path.unlink(missing_ok=True)
+
+
+def activate_schedule_draft(
+    expected_hash: str,
+    *,
+    draft_path: Path = SCHEDULE_DRAFT_PATH,
+    schedule_path: Path = DEFAULT_SCHEDULE_PATH,
+) -> str:
+    draft, preview = load_schedule_draft(draft_path)
+    if draft.schedule_hash != expected_hash:
+        raise ValueError(
+            "This draft has been replaced. Review the latest draft before activating it."
+        )
     write_schedule(
-        output=output_path,
+        output=schedule_path,
         start_date=preview.start_date,
         num_days=preview.num_days,
         times=preview.times,
         replicates=preview.replicates,
         replicate_interval_seconds=preview.replicate_interval_seconds,
-        overwrite=preview.overwrite,
+        overwrite=True,
     )
-    return output_path
+    discard_schedule_draft(draft_path)
+    return draft.schedule_hash
+
+
+def compare_schedules(
+    preview: SchedulePreview,
+    active: dict[str, Any] | None,
+) -> ScheduleComparison:
+    active_range = None
+    if active:
+        active_range = active["start_date"]
+        if active["num_days"] != 1:
+            active_range += f" → {active['end_date']}"
+    values = [
+        ("Date range", active_range, preview.date_range_label),
+        (
+            "Experiment days",
+            active.get("num_days") if active else None,
+            preview.num_days,
+        ),
+        (
+            "Daily time points",
+            active.get("daily_time_points") if active else None,
+            preview.daily_time_points,
+        ),
+        (
+            "Technical replicates",
+            active.get("replicates") if active else None,
+            preview.replicates,
+        ),
+        (
+            "Replicate spacing",
+            f'{active.get("replicate_interval_seconds")} s' if active else None,
+            f"{preview.replicate_interval_seconds} s",
+        ),
+        (
+            "Daily captures",
+            active.get("daily_captures") if active else None,
+            preview.daily_captures,
+        ),
+        (
+            "Total captures",
+            active.get("total_captures") if active else None,
+            preview.total_captures,
+        ),
+    ]
+    rows = [
+        {"label": label, "active": old, "draft": new, "changed": old != new}
+        for label, old, new in values
+    ]
+    return ScheduleComparison(
+        rows=rows,
+        has_active_schedule=active is not None,
+        changed=any(row["changed"] for row in rows),
+    )
+
+
+def _schedule_hash(schedule: dict[str, Any]) -> str:
+    return hashlib.sha256(schedule_json(schedule).encode()).hexdigest()
 
 
 def build_schedule_preview(
@@ -195,8 +301,6 @@ def build_schedule_preview(
     num_days: int,
     replicates: int,
     replicate_interval_seconds: int,
-    output: str,
-    overwrite: bool,
     every_start: str | None = None,
     every_end: str | None = None,
     every_step_minutes: int | None = None,
@@ -242,8 +346,6 @@ def build_schedule_preview(
         times=times,
         replicates=replicates,
         replicate_interval_seconds=replicate_interval_seconds,
-        output=output,
-        overwrite=overwrite,
     )
 
 

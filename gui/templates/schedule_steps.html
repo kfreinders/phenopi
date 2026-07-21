@@ -1,0 +1,8 @@
+<ol class="workflow-steps" aria-label="Schedule activation progress">
+  {% for number, label in [(1, 'Configure'), (2, 'Review'), (3, 'Activate'), (4, 'Confirmed')] %}
+    <li class="workflow-step{% if number < current_step %} workflow-step--complete{% elif number == current_step %} workflow-step--current{% endif %}"{% if number == current_step %} aria-current="step"{% endif %}>
+      <span>{% if number < current_step %}✓{% else %}{{ number }}{% endif %}</span>
+      <strong>{{ label }}</strong>
+    </li>
+  {% endfor %}
+</ol>

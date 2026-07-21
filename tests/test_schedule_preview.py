@@ -1,13 +1,17 @@
+import hashlib
 import json
 from zoneinfo import ZoneInfo
 
 import pytest
 
-from gui.services import schedule_preview
 from gui.services.schedule_preview import (
     ScheduleFormData,
+    activate_schedule_draft,
     build_schedule_preview,
-    save_schedule_preview,
+    compare_schedules,
+    discard_schedule_draft,
+    load_schedule_draft,
+    persist_schedule_draft,
 )
 from scripts.scheduling.make_schedule import write_schedule
 from scripts.scheduling.scheduler import expand_schedule, load_schedule
@@ -18,8 +22,6 @@ BASE_ARGUMENTS = {
     "num_days": 2,
     "replicates": 2,
     "replicate_interval_seconds": 10,
-    "output": "runtime/schedule.json",
-    "overwrite": True,
 }
 
 
@@ -99,48 +101,100 @@ def test_schedule_preview_requires_fields_for_selected_mode():
         build_schedule_preview(**BASE_ARGUMENTS, mode="duration")
 
 
-def test_resolve_output_path_preserves_absolute_and_resolves_relative(
-    tmp_path, monkeypatch
-):
-    monkeypatch.setattr(schedule_preview, "PROJECT_ROOT", tmp_path)
-
-    assert schedule_preview.resolve_output_path("runtime/schedule.json") == (
-        tmp_path / "runtime" / "schedule.json"
-    )
-    assert schedule_preview.resolve_output_path(str(tmp_path / "absolute.json")) == (
-        tmp_path / "absolute.json"
-    )
-
-
 def test_schedule_form_data_parses_checkbox_and_supplies_mode_defaults():
     form = ScheduleFormData.model_validate(
         {
             **BASE_ARGUMENTS,
             "mode": "every",
-            "overwrite": "on",
         }
     )
 
-    assert form.overwrite is True
     assert form.every_start == "08:00"
     assert form.every_end == "19:30"
     assert form.preview_arguments()["every_step_minutes"] == 30
 
 
-def test_save_schedule_preview_resolves_and_writes_output(tmp_path, monkeypatch):
-    monkeypatch.setattr(schedule_preview, "PROJECT_ROOT", tmp_path)
-    preview = build_schedule_preview(
+def test_schedule_draft_round_trip_and_activation(tmp_path):
+    draft_path = tmp_path / "schedule-draft.json"
+    schedule_path = tmp_path / "schedule.json"
+    form = ScheduleFormData(
         **BASE_ARGUMENTS,
         mode="every",
         every_start="09:00",
         every_end="09:00",
-        every_step_minutes=30,
     )
 
-    output = save_schedule_preview(preview)
+    draft = persist_schedule_draft(form, draft_path)
+    loaded, preview = load_schedule_draft(draft_path)
+    activated_hash = activate_schedule_draft(
+        draft.schedule_hash,
+        draft_path=draft_path,
+        schedule_path=schedule_path,
+    )
 
-    assert output == tmp_path / "runtime" / "schedule.json"
-    assert json.loads(output.read_text())["times"] == ["09:00"]
+    assert loaded == draft
+    assert preview.times == ["09:00"]
+    assert activated_hash == draft.schedule_hash
+    assert (
+        hashlib.sha256(schedule_path.read_bytes()).hexdigest()
+        == draft.schedule_hash
+    )
+    assert json.loads(schedule_path.read_text())["times"] == ["09:00"]
+    assert not draft_path.exists()
+
+
+def test_schedule_draft_rejects_stale_hash(tmp_path):
+    path = tmp_path / "draft.json"
+    form = ScheduleFormData(**BASE_ARGUMENTS, mode="every")
+    persist_schedule_draft(form, path)
+
+    with pytest.raises(ValueError, match="replaced"):
+        activate_schedule_draft(
+            "0" * 64,
+            draft_path=path,
+            schedule_path=tmp_path / "schedule.json",
+        )
+
+
+def test_schedule_draft_detects_tampering_and_can_be_discarded(tmp_path):
+    path = tmp_path / "draft.json"
+    form = ScheduleFormData(**BASE_ARGUMENTS, mode="every")
+    persist_schedule_draft(form, path)
+    payload = json.loads(path.read_text())
+    payload["schedule"]["num_days"] = 99
+    path.write_text(json.dumps(payload))
+
+    with pytest.raises(ValueError, match="inconsistent"):
+        load_schedule_draft(path)
+
+    discard_schedule_draft(path)
+    assert not path.exists()
+
+
+def test_schedule_comparison_marks_changed_values():
+    preview = build_schedule_preview(
+        **BASE_ARGUMENTS,
+        mode="every",
+        every_start="09:00",
+        every_end="10:00",
+        every_step_minutes=30,
+    )
+    active = {
+        "start_date": "2026-07-18",
+        "end_date": "2026-07-18",
+        "num_days": 1,
+        "daily_time_points": 1,
+        "replicates": 1,
+        "replicate_interval_seconds": 0,
+        "daily_captures": 1,
+        "total_captures": 1,
+    }
+
+    comparison = compare_schedules(preview, active)
+
+    assert comparison.has_active_schedule is True
+    assert comparison.changed is True
+    assert any(row["changed"] for row in comparison.rows)
 
 
 def test_generated_schedule_is_compatible_with_scheduler(tmp_path):
