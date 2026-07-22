@@ -95,6 +95,9 @@ def test_expand_schedule_uses_replicate_defaults():
         {"num_days": 0},
         {"replicates": 0},
         {"replicate_interval_seconds": -1},
+        {"num_days": 10**100},
+        {"replicates": 10**100},
+        {"replicate_interval_seconds": 10**100},
     ],
 )
 def test_expand_schedule_rejects_invalid_settings(overrides):
@@ -109,15 +112,16 @@ def test_expand_schedule_rejects_invalid_settings(overrides):
         scheduler_module.expand_schedule(config, TZ)
 
 
-def test_expand_schedule_rejects_overlapping_replicates():
-    with pytest.raises(ScheduleValidationError, match="duplicate"):
+@pytest.mark.parametrize("interval", [60, 61])
+def test_expand_schedule_rejects_replicates_at_or_after_next_capture(interval):
+    with pytest.raises(ScheduleValidationError, match="finish before"):
         scheduler_module.expand_schedule(
             {
                 "start_date": "2026-07-18",
                 "num_days": 1,
                 "times": ["09:00", "09:01"],
                 "replicates": 2,
-                "replicate_interval_seconds": 60,
+                "replicate_interval_seconds": interval,
             },
             TZ,
         )

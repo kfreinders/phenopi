@@ -8,7 +8,13 @@ from pathlib import Path
 import sys
 import tempfile
 
-from .schedule_validation import validate_unique_values
+from .schedule_validation import (
+    MAX_STEP_MINUTES,
+    MAX_WINDOW_MINUTES,
+    validate_replicate_windows,
+    validate_schedule_size,
+    validate_unique_values,
+)
 
 
 def every_n_minutes(start: str, end: str, step_minutes: int) -> list[str]:
@@ -51,10 +57,14 @@ def every_n_minutes(start: str, end: str, step_minutes: int) -> list[str]:
     """
     if step_minutes <= 0:
         raise ValueError("step_minutes must be > 0")
+    if step_minutes > MAX_STEP_MINUTES:
+        raise ValueError(f"step_minutes must be <= {MAX_STEP_MINUTES}")
 
     times: list[str] = []
     current = datetime.strptime(start, "%H:%M")
     end_dt = datetime.strptime(end, "%H:%M")
+    if end_dt < current:
+        raise ValueError("end time must not be earlier than start time")
 
     while current <= end_dt:
         times.append(current.strftime("%H:%M"))
@@ -112,11 +122,18 @@ def every_n_minutes_for_duration(
     """
     if duration_minutes < 0:
         raise ValueError("duration_minutes must be >= 0")
+    if duration_minutes > MAX_WINDOW_MINUTES:
+        raise ValueError(f"duration_minutes must be <= {MAX_WINDOW_MINUTES}")
     if step_minutes <= 0:
         raise ValueError("step_minutes must be > 0")
+    if step_minutes > MAX_STEP_MINUTES:
+        raise ValueError(f"step_minutes must be <= {MAX_STEP_MINUTES}")
 
     times: list[str] = []
     current = datetime.strptime(start, "%H:%M")
+    minutes_remaining = 23 * 60 + 59 - (current.hour * 60 + current.minute)
+    if duration_minutes > minutes_remaining:
+        raise ValueError("duration window must not cross midnight")
     end_dt = current + timedelta(minutes=duration_minutes)
 
     while current <= end_dt:
@@ -180,8 +197,15 @@ def centered_time_range(
         raise ValueError("after_minutes must be >= 0")
     if step_minutes <= 0:
         raise ValueError("step_minutes must be > 0")
+    if before_minutes > MAX_WINDOW_MINUTES or after_minutes > MAX_WINDOW_MINUTES:
+        raise ValueError(f"centered window values must be <= {MAX_WINDOW_MINUTES}")
+    if step_minutes > MAX_STEP_MINUTES:
+        raise ValueError(f"step_minutes must be <= {MAX_STEP_MINUTES}")
 
     center_dt = datetime.strptime(center, "%H:%M")
+    center_minutes = center_dt.hour * 60 + center_dt.minute
+    if before_minutes > center_minutes or after_minutes > 1439 - center_minutes:
+        raise ValueError("centered window must not cross midnight")
     start_dt = center_dt - timedelta(minutes=before_minutes)
     end_dt = center_dt + timedelta(minutes=after_minutes)
 
@@ -220,15 +244,28 @@ def validate_unique_expanded_times(
     ValueError
         If the expanded daily schedule contains duplicate capture times.
     """
+    validate_schedule_size(
+        num_days=1,
+        daily_time_points=len(times),
+        replicates=replicates,
+        replicate_interval_seconds=replicate_interval_seconds,
+    )
+    base_datetimes = [datetime.strptime(value, "%H:%M") for value in times]
+    validate_replicate_windows(
+        [value.hour * 3600 + value.minute * 60 for value in base_datetimes],
+        replicates=replicates,
+        replicate_interval_seconds=replicate_interval_seconds,
+    )
     expanded: list[str] = []
 
-    for time_str in times:
-        base = datetime.strptime(time_str, "%H:%M")
+    for base in base_datetimes:
 
         for rep in range(replicates):
             capture_dt = base + timedelta(
                 seconds=rep * replicate_interval_seconds
             )
+            if capture_dt.date() != base.date():
+                raise ValueError("replicate captures must not cross midnight")
             expanded.append(capture_dt.strftime("%H:%M:%S"))
 
     validate_unique_values(
@@ -286,16 +323,20 @@ def write_schedule(
     overwrite: bool = False,
 ) -> None:
     try:
-        date.fromisoformat(start_date)
+        parsed_start = date.fromisoformat(start_date)
     except ValueError as exc:
         raise ValueError("--start-date must use YYYY-MM-DD format") from exc
 
-    if num_days <= 0:
-        raise ValueError("--num-days must be > 0")
-    if replicates <= 0:
-        raise ValueError("--replicates must be > 0")
-    if replicate_interval_seconds < 0:
-        raise ValueError("--replicate-interval-seconds must be >= 0")
+    validate_schedule_size(
+        num_days=num_days,
+        daily_time_points=len(times),
+        replicates=replicates,
+        replicate_interval_seconds=replicate_interval_seconds,
+    )
+    try:
+        parsed_start + timedelta(days=num_days - 1)
+    except OverflowError as exc:
+        raise ValueError("schedule date range exceeds the supported calendar") from exc
 
     validate_unique_expanded_times(
         times=times,

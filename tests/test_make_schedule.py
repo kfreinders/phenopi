@@ -17,11 +17,15 @@ from scripts.scheduling.schedule_validation import ScheduleValidationError
     [
         ("09:00", "10:00", 30, ["09:00", "09:30", "10:00"]),
         ("09:00", "09:45", 30, ["09:00", "09:30"]),
-        ("10:00", "09:00", 30, []),
     ],
 )
 def test_every_n_minutes(start, end, step, expected):
     assert every_n_minutes(start, end, step) == expected
+
+
+def test_every_n_minutes_rejects_an_empty_reverse_window():
+    with pytest.raises(ValueError, match="earlier"):
+        every_n_minutes("10:00", "09:00", 30)
 
 
 @pytest.mark.parametrize("step", [0, -1])
@@ -33,6 +37,30 @@ def test_every_n_minutes_requires_positive_step(step):
 def test_every_n_minutes_rejects_invalid_time():
     with pytest.raises(ValueError):
         every_n_minutes("24:00", "10:00", 30)
+
+
+@pytest.mark.parametrize("value", [10**100, 1441])
+def test_time_generators_reject_unsafe_large_values(value):
+    with pytest.raises(ValueError):
+        every_n_minutes("09:00", "10:00", value)
+    with pytest.raises(ValueError):
+        every_n_minutes_for_duration("09:00", value, 30)
+    with pytest.raises(ValueError):
+        centered_time_range("12:00", value, 0, 30)
+
+
+def test_daily_windows_cannot_wrap_across_midnight():
+    with pytest.raises(ValueError, match="midnight"):
+        every_n_minutes_for_duration("23:30", 60, 15)
+    with pytest.raises(ValueError, match="midnight"):
+        centered_time_range("00:30", 60, 0, 15)
+
+
+def test_replicate_expansion_rejects_unsafe_values_before_looping():
+    with pytest.raises(ValueError):
+        validate_unique_expanded_times(["09:00"], 10**100, 1)
+    with pytest.raises(ValueError):
+        validate_unique_expanded_times(["09:00"], 2, 10**100)
 
 
 @pytest.mark.parametrize(
@@ -74,12 +102,13 @@ def test_centered_range_rejects_invalid_numbers(before, after, step):
         centered_time_range("12:00", before, after, step)
 
 
-def test_expanded_replicates_must_not_overlap():
-    with pytest.raises(ScheduleValidationError, match="duplicate"):
+@pytest.mark.parametrize("interval", [60, 61])
+def test_expanded_replicates_must_finish_before_next_time_point(interval):
+    with pytest.raises(ScheduleValidationError, match="finish before"):
         validate_unique_expanded_times(
             times=["09:00", "09:01"],
             replicates=2,
-            replicate_interval_seconds=60,
+            replicate_interval_seconds=interval,
         )
 
 

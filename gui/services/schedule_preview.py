@@ -19,6 +19,7 @@ from scripts.scheduling.make_schedule import (
     validate_unique_expanded_times,
     write_schedule,
 )
+from scripts.scheduling.schedule_validation import validate_schedule_size
 
 
 DRAFT_VERSION = 2
@@ -361,12 +362,6 @@ def build_schedule_preview(
     centered_step_minutes: int | None = None,
 ) -> SchedulePreview:
     _validate_start_date(start_date)
-    _validate_positive_int(num_days, "Number of days")
-    _validate_positive_int(replicates, "Replicates")
-
-    if replicate_interval_seconds < 0:
-        raise ValueError("Replicate interval must be 0 or greater.")
-
     times = _build_times(
         mode=mode,
         every_start=every_start,
@@ -380,6 +375,19 @@ def build_schedule_preview(
         centered_after_minutes=centered_after_minutes,
         centered_step_minutes=centered_step_minutes,
     )
+
+    validate_schedule_size(
+        num_days=num_days,
+        daily_time_points=len(times),
+        replicates=replicates,
+        replicate_interval_seconds=replicate_interval_seconds,
+    )
+    try:
+        date.fromisoformat(start_date) + timedelta(days=num_days - 1)
+    except OverflowError as exc:
+        raise ValueError(
+            "The experiment date range exceeds the supported calendar."
+        ) from exc
 
     validate_unique_expanded_times(
         times=times,
@@ -448,9 +456,11 @@ def _build_times(
 
 def _validate_start_date(start_date: str) -> None:
     try:
-        date.fromisoformat(start_date)
+        parsed = date.fromisoformat(start_date)
     except ValueError as exc:
         raise ValueError("Start date must use YYYY-MM-DD format.") from exc
+    if parsed < date.today():
+        raise ValueError("Start date cannot be in the past.")
 
 
 def _validate_positive_int(value: int, label: str) -> None:

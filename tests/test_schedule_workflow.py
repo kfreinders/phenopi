@@ -94,6 +94,9 @@ def test_configure_page_makes_workflow_and_next_action_explicit(
     assert "Continue to review" in html
     assert 'name="output"' not in html
     assert 'name="overwrite"' not in html
+    assert 'name="num_days" min="1" max="3650"' in html
+    assert 'name="replicates" min="1" max="100"' in html
+    assert f'min="{date.today().isoformat()}"' in html
 
 
 def test_preview_persists_draft_and_schedule_page_resumes_review(

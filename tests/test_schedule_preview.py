@@ -18,7 +18,7 @@ from scripts.scheduling.scheduler import expand_schedule, load_schedule
 
 
 BASE_ARGUMENTS = {
-    "start_date": "2026-07-18",
+    "start_date": "2099-07-18",
     "num_days": 2,
     "replicates": 2,
     "replicate_interval_seconds": 10,
@@ -64,7 +64,7 @@ def test_build_schedule_preview_modes(mode, mode_arguments, expected):
     assert preview.times == expected
     assert preview.daily_captures == len(expected) * 2
     assert preview.total_captures == len(expected) * 4
-    assert preview.date_range_label == "2026-07-18 → 2026-07-19"
+    assert preview.date_range_label == "2099-07-18 → 2099-07-19"
     assert preview.replicate_offsets == [
         {"number": 1, "offset_seconds": 0},
         {"number": 2, "offset_seconds": 10},
@@ -79,6 +79,9 @@ def test_build_schedule_preview_modes(mode, mode_arguments, expected):
         {"num_days": 0},
         {"replicates": 0},
         {"replicate_interval_seconds": -1},
+        {"num_days": 10**100},
+        {"replicates": 10**100},
+        {"replicate_interval_seconds": 10**100},
         {"mode": "unknown"},
     ],
 )
@@ -99,6 +102,37 @@ def test_schedule_preview_rejects_invalid_form_values(overrides):
 def test_schedule_preview_requires_fields_for_selected_mode():
     with pytest.raises(ValueError, match="Duration mode requires"):
         build_schedule_preview(**BASE_ARGUMENTS, mode="duration")
+
+
+def test_schedule_preview_rejects_past_and_overflowing_date_ranges():
+    with pytest.raises(ValueError, match="past"):
+        build_schedule_preview(
+            **{**BASE_ARGUMENTS, "start_date": "2020-01-01"},
+            mode="every",
+        )
+    with pytest.raises(ValueError, match="calendar"):
+        build_schedule_preview(
+            **{**BASE_ARGUMENTS, "start_date": "9999-12-31", "num_days": 2},
+            mode="every",
+            every_start="09:00",
+            every_end="10:00",
+            every_step_minutes=30,
+        )
+
+
+def test_schedule_preview_caps_total_capture_count():
+    with pytest.raises(ValueError, match="maximum"):
+        build_schedule_preview(
+            **{
+                **BASE_ARGUMENTS,
+                "num_days": 3650,
+                "replicates": 100,
+            },
+            mode="every",
+            every_start="00:00",
+            every_end="23:59",
+            every_step_minutes=1,
+        )
 
 
 def test_schedule_form_data_parses_checkbox_and_supplies_mode_defaults():

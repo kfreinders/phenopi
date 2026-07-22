@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Form, Request
@@ -188,6 +189,7 @@ def _render_form(
             "active_tab": "schedule",
             "current_step": 1,
             "form": form,
+            "minimum_start_date": date.today().isoformat(),
             "error": error,
         },
     )

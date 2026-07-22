@@ -41,17 +41,18 @@
             type="date"
             name="start_date"
             value="{{ form.start_date }}"
+            min="{{ minimum_start_date }}"
             required
           >
         </label>
         <label>Number of days
-          <input type="number" name="num_days" min="1" value="{{ form.num_days }}" required>
+          <input type="number" name="num_days" min="1" max="3650" value="{{ form.num_days }}" required>
         </label>
         <label>Replicates
-          <input type="number" name="replicates" min="1" value="{{ form.replicates }}" required>
+          <input type="number" name="replicates" min="1" max="100" value="{{ form.replicates }}" required>
         </label>
         <label>Replicate interval (s)
-          <input type="number" name="replicate_interval_seconds" min="0" value="{{ form.replicate_interval_seconds }}" required>
+          <input type="number" name="replicate_interval_seconds" min="0" max="86400" value="{{ form.replicate_interval_seconds }}" required>
         </label>
       </div>
     </fieldset>
@@ -66,7 +67,7 @@
           <input type="time" name="every_end" value="{{ form.every_end }}">
         </label>
         <label>Step minutes
-          <input type="number" name="every_step_minutes" min="1" value="{{ form.every_step_minutes }}">
+          <input type="number" name="every_step_minutes" min="1" max="1440" value="{{ form.every_step_minutes }}">
         </label>
       </div>
     </fieldset>
@@ -78,10 +79,10 @@
           <input type="time" name="duration_start" value="{{ form.duration_start }}">
         </label>
         <label>Duration minutes
-          <input type="number" name="duration_minutes" min="0" value="{{ form.duration_minutes }}">
+          <input type="number" name="duration_minutes" min="0" max="1439" value="{{ form.duration_minutes }}">
         </label>
         <label>Step minutes
-          <input type="number" name="duration_step_minutes" min="1" value="{{ form.duration_step_minutes }}">
+          <input type="number" name="duration_step_minutes" min="1" max="1440" value="{{ form.duration_step_minutes }}">
         </label>
       </div>
     </fieldset>
@@ -93,13 +94,13 @@
           <input type="time" name="centered_center" value="{{ form.centered_center }}">
         </label>
         <label>Before minutes
-          <input type="number" name="centered_before_minutes" min="0" value="{{ form.centered_before_minutes }}">
+          <input type="number" name="centered_before_minutes" min="0" max="1439" value="{{ form.centered_before_minutes }}">
         </label>
         <label>After minutes
-          <input type="number" name="centered_after_minutes" min="0" value="{{ form.centered_after_minutes }}">
+          <input type="number" name="centered_after_minutes" min="0" max="1439" value="{{ form.centered_after_minutes }}">
         </label>
         <label>Step minutes
-          <input type="number" name="centered_step_minutes" min="1" value="{{ form.centered_step_minutes }}">
+          <input type="number" name="centered_step_minutes" min="1" max="1440" value="{{ form.centered_step_minutes }}">
         </label>
       </div>
     </fieldset>

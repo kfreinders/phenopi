@@ -19,6 +19,8 @@ from .config import SchedulerConfig, default_scheduler_config
 from .heartbeat import HEARTBEAT_INTERVAL_SECONDS, SchedulerHeartbeat
 from .schedule_validation import (
     ScheduleValidationError,
+    validate_replicate_windows,
+    validate_schedule_size,
     validate_unique_values,
 )
 from .run_store import RunArchive, validate_run_metadata
@@ -94,12 +96,22 @@ def expand_schedule(cfg: dict, tz: ZoneInfo) -> list[datetime]:
     replicates = int(cfg.get("replicates", 1))
     replicate_interval = int(cfg.get("replicate_interval_seconds", 0))
 
-    if num_days <= 0:
-        raise ValueError("num_days must be > 0")
-    if replicates <= 0:
-        raise ValueError("replicates must be > 0")
-    if replicate_interval < 0:
-        raise ValueError("replicate_interval_seconds must be >= 0")
+    validate_schedule_size(
+        num_days=num_days,
+        daily_time_points=len(times),
+        replicates=replicates,
+        replicate_interval_seconds=replicate_interval,
+    )
+    validate_replicate_windows(
+        [value.hour * 3600 + value.minute * 60 for value in times],
+        replicates=replicates,
+        replicate_interval_seconds=replicate_interval,
+    )
+
+    try:
+        start_date + timedelta(days=num_days - 1)
+    except OverflowError as exc:
+        raise ValueError("schedule date range exceeds the supported calendar") from exc
 
     jobs = []
     for day_offset in range(num_days):
@@ -107,7 +119,10 @@ def expand_schedule(cfg: dict, tz: ZoneInfo) -> list[datetime]:
         for capture_time in times:
             base = datetime.combine(current_day, capture_time, tzinfo=tz)
             for rep in range(replicates):
-                jobs.append(base + timedelta(seconds=rep * replicate_interval))
+                capture_at = base + timedelta(seconds=rep * replicate_interval)
+                if capture_at.date() != current_day:
+                    raise ValueError("replicate captures must not cross midnight")
+                jobs.append(capture_at)
 
     validate_unique_values(
         jobs,
