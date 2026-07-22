@@ -14,6 +14,7 @@ from gui.config import (
     templates,
 )
 from gui.services.schedule_preview import (
+    PastStartDateError,
     ScheduleFormData,
     activate_schedule_draft,
     compare_schedules,
@@ -40,6 +41,9 @@ def schedule_form(request: Request) -> HTMLResponse:
     if SCHEDULE_DRAFT_PATH.exists():
         try:
             load_schedule_draft(SCHEDULE_DRAFT_PATH)
+        except PastStartDateError:
+            discard_schedule_draft(SCHEDULE_DRAFT_PATH)
+            return _render_form(request, form_defaults())
         except ValueError as exc:
             return _render_form(request, form_defaults(), error=str(exc))
         return RedirectResponse(url="/schedule/review", status_code=303)
@@ -50,6 +54,9 @@ def schedule_form(request: Request) -> HTMLResponse:
 def edit_schedule_draft(request: Request) -> HTMLResponse:
     try:
         draft, _ = load_schedule_draft(SCHEDULE_DRAFT_PATH)
+    except PastStartDateError:
+        discard_schedule_draft(SCHEDULE_DRAFT_PATH)
+        return RedirectResponse(url="/schedule", status_code=303)
     except ValueError:
         return RedirectResponse(url="/schedule", status_code=303)
     return _render_form(request, draft.form.form_arguments())
@@ -75,6 +82,9 @@ def preview_schedule(
 def review_schedule(request: Request) -> HTMLResponse:
     try:
         draft, preview = load_schedule_draft(SCHEDULE_DRAFT_PATH)
+    except PastStartDateError:
+        discard_schedule_draft(SCHEDULE_DRAFT_PATH)
+        return RedirectResponse(url="/schedule", status_code=303)
     except ValueError as exc:
         return _render_form(request, form_defaults(), error=str(exc))
     status = read_scheduler_status(SCHEDULER_HEARTBEAT_PATH)
@@ -99,6 +109,9 @@ def activate_schedule(
 ) -> HTMLResponse:
     try:
         draft, preview = load_schedule_draft(SCHEDULE_DRAFT_PATH)
+    except PastStartDateError:
+        discard_schedule_draft(SCHEDULE_DRAFT_PATH)
+        return RedirectResponse(url="/schedule", status_code=303)
     except ValueError as exc:
         return _render_form(request, form_defaults(), error=str(exc))
     status = read_scheduler_status(SCHEDULER_HEARTBEAT_PATH)

@@ -99,6 +99,34 @@ def test_configure_page_makes_workflow_and_next_action_explicit(
     assert f'min="{date.today().isoformat()}"' in html
 
 
+def test_configure_page_discards_expired_draft_without_showing_error(
+    tmp_path, monkeypatch
+):
+    draft_path, _, _ = configure_paths(monkeypatch, tmp_path)
+    form = schedule_form_data().model_copy(
+        update={"start_date": (date.today() - timedelta(days=1)).isoformat()}
+    )
+    draft_path.write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "form": form.model_dump(),
+                "schedule": {},
+                "schedule_hash": "a" * 64,
+            }
+        )
+    )
+
+    response = schedule_routes.schedule_form(request_for("/schedule"))
+    html = response.body.decode()
+
+    assert response.status_code == 200
+    assert not draft_path.exists()
+    assert "Start date cannot be in the past." not in html
+    assert f'value="{date.today().isoformat()}"' in html
+
+
 def test_preview_persists_draft_and_schedule_page_resumes_review(
     tmp_path, monkeypatch
 ):

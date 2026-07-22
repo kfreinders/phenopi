@@ -25,6 +25,10 @@ from scripts.scheduling.schedule_validation import validate_schedule_size
 DRAFT_VERSION = 2
 
 
+class PastStartDateError(ValueError):
+    """Raised when a schedule's start date has already passed."""
+
+
 class ScheduleFormData(BaseModel):
     """Typed representation of the schedule builder's submitted fields."""
 
@@ -460,7 +464,7 @@ def _validate_start_date(start_date: str) -> None:
     except ValueError as exc:
         raise ValueError("Start date must use YYYY-MM-DD format.") from exc
     if parsed < date.today():
-        raise ValueError("Start date cannot be in the past.")
+        raise PastStartDateError("Start date cannot be in the past.")
 
 
 def _validate_positive_int(value: int, label: str) -> None:
