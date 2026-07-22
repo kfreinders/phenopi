@@ -95,7 +95,9 @@
 
 .review-actions { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; margin-top: 1.25rem; }
 .review-actions p { margin: .3rem 0 0; }
-.review-action-buttons, .activation-actions { display: flex; align-items: center; justify-content: flex-end; gap: .7rem; flex-wrap: wrap; }
+.review-action-buttons { display: flex; align-items: center; justify-content: flex-end; gap: .7rem; flex-wrap: wrap; }
+.activation-redirect { color: #067647 !important; font-weight: 650; }
+.activation-redirect strong { display: inline-block; min-width: 1ch; }
 .review-action-buttons form { margin: 0; }
 .button-link { display: inline-flex; align-items: center; justify-content: center; padding: .8rem 1rem; border: 1px solid var(--blue); border-radius: .65rem; color: white; background: var(--blue); text-decoration: none; font-weight: 750; }
 .button-link.secondary { color: var(--blue-dark); border-color: #b9d5ee; background: var(--surface-soft); }

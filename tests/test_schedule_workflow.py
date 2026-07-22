@@ -282,3 +282,29 @@ def test_activation_client_polls_until_confirmation_or_timeout():
     assert "90000" in contents
     assert "expectedScheduleHash" in contents
     assert 'workflow-step")[3].className = "workflow-step workflow-step--complete"' in contents
+    assert 'window.location.assign("/scheduler")' in contents
+    assert "seconds = 3" in contents
+
+
+def test_confirmed_page_redirects_without_offering_another_schedule(
+    tmp_path, monkeypatch
+):
+    draft_path, _, heartbeat_path = configure_paths(monkeypatch, tmp_path)
+    draft = persist_schedule_draft(schedule_form_data(), draft_path)
+    write_heartbeat(
+        heartbeat_path,
+        state="running",
+        schedule={
+            "hash": draft.schedule_hash,
+            "timezone": "Europe/Amsterdam",
+            **draft.schedule,
+        },
+    )
+
+    html = schedule_routes.schedule_activation(
+        request_for("/schedule/activation"), draft.schedule_hash
+    ).body.decode()
+
+    assert "Opening Scheduler Status" in html
+    assert "Create another schedule" not in html
+    assert "View scheduler status" not in html

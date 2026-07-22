@@ -14,10 +14,9 @@
     <h2 id="activation-title">{% if confirmed %}Schedule confirmed{% else %}Waiting for scheduler confirmation{% endif %}</h2>
     <p id="activation-message">{% if confirmed %}The scheduler has loaded the activated schedule and is ready.{% else %}The schedule was activated safely. Phenopi is waiting for the scheduler to report that it loaded the exact schedule.{% endif %}</p>
   </div>
-  <div id="activation-actions" class="activation-actions"{% if not confirmed %} hidden{% endif %}>
-    <a class="button-link" href="/scheduler">View scheduler status</a>
-    <a id="create-another-schedule" class="button-link secondary" href="/schedule"{% if not confirmed %} hidden{% endif %}>Create another schedule</a>
-  </div>
+  <p id="activation-redirect" class="activation-redirect"{% if not confirmed %} hidden{% endif %}>
+    Opening Scheduler Status in <strong id="activation-countdown">3</strong> seconds…
+  </p>
 </section>
 
 <script id="initial-scheduler-status" type="application/json">{{ scheduler_status | tojson }}</script>

@@ -11,3 +11,4 @@ results/
 main.*
 !main.tex
 *.aux
+/captures_original

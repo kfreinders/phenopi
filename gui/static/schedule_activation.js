@@ -2,6 +2,25 @@ const expectedScheduleHash = JSON.parse(document.getElementById("expected-schedu
 const activationStartedAt = Date.now();
 let activationTimer = null;
 let activationTerminal = false;
+let redirectStarted = false;
+
+function startConfirmedRedirect() {
+  if (redirectStarted) return;
+  redirectStarted = true;
+  const redirect = document.getElementById("activation-redirect");
+  const countdown = document.getElementById("activation-countdown");
+  redirect.hidden = false;
+  let seconds = 3;
+  countdown.textContent = seconds;
+  const countdownTimer = window.setInterval(() => {
+    seconds -= 1;
+    countdown.textContent = seconds;
+    if (seconds === 0) {
+      window.clearInterval(countdownTimer);
+      window.location.assign("/scheduler");
+    }
+  }, 1000);
+}
 
 function showActivationState(kind, title, message) {
   const icon = document.getElementById("activation-icon");
@@ -22,22 +41,21 @@ function renderActivation(data) {
     document.querySelectorAll(".workflow-step")[3].className = "workflow-step workflow-step--complete";
     document.querySelectorAll(".workflow-step")[3].querySelector("span").textContent = "✓";
     document.querySelectorAll(".workflow-step")[3].removeAttribute("aria-current");
-    document.getElementById("activation-actions").hidden = false;
-    document.getElementById("create-another-schedule").hidden = false;
+    startConfirmedRedirect();
     window.clearInterval(activationTimer);
     return;
   }
   if (data.status === "invalid_schedule" && Date.now() - activationStartedAt >= 35000) {
     activationTerminal = true;
     showActivationState("rejected", "Scheduler rejected the schedule", data.message);
-    document.getElementById("activation-actions").hidden = false;
+    document.getElementById("activation-redirect").hidden = true;
     window.clearInterval(activationTimer);
     return;
   }
   if (Date.now() - activationStartedAt >= 90000) {
     activationTerminal = true;
     showActivationState("waiting", "Schedule not yet confirmed", "The scheduler has not confirmed the schedule within 90 seconds. The schedule may still be loading.");
-    document.getElementById("activation-actions").hidden = false;
+    document.getElementById("activation-redirect").hidden = true;
     window.clearInterval(activationTimer);
     return;
   }
