@@ -30,7 +30,7 @@ _HASH_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 @router.get("/", response_class=HTMLResponse)
 def index() -> RedirectResponse:
-    return RedirectResponse(url="/schedule", status_code=303)
+    return RedirectResponse(url="/scheduler", status_code=303)
 
 
 @router.get("/schedule", response_class=HTMLResponse)

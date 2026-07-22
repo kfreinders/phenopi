@@ -1,5 +1,6 @@
 const byId = (id) => document.getElementById(id);
 const lifecycleLabels = { upcoming: "Upcoming", active: "Active", finished: "Finished", empty: "Empty schedule" };
+const scheduleDraftState = JSON.parse(byId("schedule-draft-state").textContent);
 
 function formatDateTime(value, options = {}) {
   if (!value) return "—";
@@ -41,6 +42,7 @@ function renderSchedule(data) {
   }
   byId("schedule-empty").hidden = Boolean(schedule);
   byId("schedule-dashboard").hidden = !schedule;
+  renderScheduleAction(schedule);
   if (!schedule) return;
 
   const lifecycle = byId("schedule-lifecycle");
@@ -105,6 +107,33 @@ function renderSchedule(data) {
   byId("daily-summary").textContent = `${schedule.daily_time_points} time points and ${schedule.daily_captures} planned captures per day.`;
   byId("replicate-summary").textContent = `${schedule.replicates} capture${schedule.replicates === 1 ? "" : "s"} per time point, spaced ${schedule.replicate_interval_seconds} seconds apart.`;
   byId("replicate-burst").replaceChildren(...schedule.replicate_offsets.map((replicate) => { const item = document.createElement("div"); const dot = document.createElement("strong"); dot.textContent = replicate.number; const offset = document.createElement("span"); offset.textContent = `+${replicate.offset_seconds}s`; item.append(dot, offset); return item; }));
+}
+
+function renderScheduleAction(schedule) {
+  const action = byId("schedule-action");
+  const emptyLink = byId("schedule-empty-link");
+  emptyLink.href = scheduleDraftState === "ready" ? "/schedule/review" : "/schedule";
+  emptyLink.textContent = scheduleDraftState === "ready" ? "Review draft" : "Create a schedule";
+
+  action.hidden = true;
+  if (!schedule) return;
+
+  let content = null;
+  if (scheduleDraftState === "ready") {
+    content = ["Schedule draft", "Draft ready for review", "Continue reviewing the saved draft before activating it.", "Review draft", "/schedule/review"];
+  } else if (scheduleDraftState === "invalid") {
+    content = ["Schedule draft", "Draft needs attention", "The saved draft could not be read. Open the schedule builder to correct it.", "Open schedule builder", "/schedule"];
+  } else if (schedule.lifecycle === "finished") {
+    content = ["Experiment complete", "Experiment finished", "This completed schedule remains available below for reference.", "Create next schedule", "/schedule"];
+  }
+  if (!content) return;
+
+  byId("schedule-action-eyebrow").textContent = content[0];
+  byId("schedule-action-title").textContent = content[1];
+  byId("schedule-action-copy").textContent = content[2];
+  byId("schedule-action-link").textContent = content[3];
+  byId("schedule-action-link").href = content[4];
+  action.hidden = false;
 }
 
 function render(data) {

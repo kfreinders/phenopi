@@ -18,11 +18,20 @@
 
   <div id="schedule-warning" class="schedule-warning" hidden></div>
 
+  <section id="schedule-action" class="card schedule-action" hidden>
+    <div>
+      <span id="schedule-action-eyebrow" class="eyebrow"></span>
+      <h3 id="schedule-action-title"></h3>
+      <p id="schedule-action-copy"></p>
+    </div>
+    <a id="schedule-action-link" class="primary-link" href="/schedule"></a>
+  </section>
+
   <section id="schedule-empty" class="card schedule-empty" hidden>
     <div class="empty-icon">⌁</div>
     <h3>No schedule loaded</h3>
     <p>The scheduler is ready for an experiment schedule.</p>
-    <a class="primary-link" href="/schedule">Create a schedule</a>
+    <a id="schedule-empty-link" class="primary-link" href="/schedule">Create a schedule</a>
   </section>
 
   <div id="schedule-dashboard" hidden>
@@ -73,6 +82,7 @@
 </section>
 
 <script id="initial-scheduler-status" type="application/json">{{ scheduler_status | tojson }}</script>
+<script id="schedule-draft-state" type="application/json">{{ schedule_draft_state | tojson }}</script>
 {% endblock %}
 
 {% block page_scripts %}

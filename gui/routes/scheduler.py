@@ -3,7 +3,12 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
-from gui.config import SCHEDULER_HEARTBEAT_PATH, templates
+from gui.config import (
+    SCHEDULE_DRAFT_PATH,
+    SCHEDULER_HEARTBEAT_PATH,
+    templates,
+)
+from gui.services.schedule_preview import load_schedule_draft
 from gui.services.scheduler_status import (
     read_scheduler_health,
     read_scheduler_status,
@@ -11,6 +16,17 @@ from gui.services.scheduler_status import (
 
 
 router = APIRouter()
+
+
+def schedule_draft_state() -> str:
+    """Return the scheduler-page action state for the persisted draft."""
+    if not SCHEDULE_DRAFT_PATH.exists():
+        return "none"
+    try:
+        load_schedule_draft(SCHEDULE_DRAFT_PATH)
+    except ValueError:
+        return "invalid"
+    return "ready"
 
 
 @router.get("/scheduler", response_class=HTMLResponse)
@@ -24,6 +40,7 @@ def scheduler_status_page(request: Request) -> HTMLResponse:
             "scheduler_status": read_scheduler_status(
                 SCHEDULER_HEARTBEAT_PATH
             ),
+            "schedule_draft_state": schedule_draft_state(),
         },
     )
 

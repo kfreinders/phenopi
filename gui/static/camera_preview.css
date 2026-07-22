@@ -87,6 +87,42 @@
   padding: 1rem;
 }
 
+.camera-workflow-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px dashed #98a2b3;
+  border-radius: .85rem;
+  background: #f9fafb;
+}
+
+.camera-workflow-footer p {
+  margin: .25rem 0 0;
+  color: var(--muted);
+}
+
+.camera-continue-link {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  flex: 0 0 auto;
+  padding: .75rem .9rem;
+  border-radius: .65rem;
+  color: white;
+  background: var(--blue);
+  text-decoration: none;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.camera-continue-link:hover,
+.camera-continue-link:focus-visible {
+  background: var(--blue-dark);
+}
+
 .camera-info-card h3 {
   margin-top: 0;
 }
@@ -143,5 +179,10 @@
   .camera-frame,
   .camera-frame video {
     min-height: 20rem;
+  }
+
+  .camera-workflow-footer {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
