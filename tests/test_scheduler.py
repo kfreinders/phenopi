@@ -341,7 +341,10 @@ def test_poll_schedule_reloads_valid_update(scheduler_config):
         ("", "schedule file is empty"),
         ("not json", "does not contain valid JSON"),
         ("{}", "missing required field 'start_date'"),
-        ('{"start_date": null, "num_days": 1, "times": null}', "isoformat"),
+        (
+            '{"start_date": null, "num_days": 1, "times": null}',
+            "start_date must use YYYY-MM-DD format",
+        ),
     ],
 )
 def test_malformed_schedule_is_reported_through_heartbeat(

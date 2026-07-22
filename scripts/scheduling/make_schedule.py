@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from datetime import date, datetime, timedelta
-import json
+from datetime import datetime, timedelta
 import os
 from pathlib import Path
 import sys
@@ -15,6 +14,7 @@ from .schedule_validation import (
     validate_schedule_size,
     validate_unique_values,
 )
+from .schedule import Schedule
 
 
 def every_n_minutes(start: str, end: str, step_minutes: int) -> list[str]:
@@ -322,26 +322,18 @@ def write_schedule(
     run: dict | None = None,
     overwrite: bool = False,
 ) -> None:
-    try:
-        parsed_start = date.fromisoformat(start_date)
-    except ValueError as exc:
-        raise ValueError("--start-date must use YYYY-MM-DD format") from exc
-
-    validate_schedule_size(
-        num_days=num_days,
-        daily_time_points=len(times),
-        replicates=replicates,
-        replicate_interval_seconds=replicate_interval_seconds,
-    )
-    try:
-        parsed_start + timedelta(days=num_days - 1)
-    except OverflowError as exc:
-        raise ValueError("schedule date range exceeds the supported calendar") from exc
-
     validate_unique_expanded_times(
         times=times,
         replicates=replicates,
         replicate_interval_seconds=replicate_interval_seconds,
+    )
+    schedule = Schedule.create(
+        start_date=start_date,
+        num_days=num_days,
+        times=times,
+        replicates=replicates,
+        replicate_interval_seconds=replicate_interval_seconds,
+        run=run,
     )
 
     if output.exists() and not overwrite:
@@ -349,22 +341,14 @@ def write_schedule(
             f"Output already exists: {output}. Use --overwrite to replace it."
         )
 
-    schedule = {
-        "start_date": start_date,
-        "num_days": num_days,
-        "replicates": replicates,
-        "replicate_interval_seconds": replicate_interval_seconds,
-        "times": times,
-    }
-    if run is not None:
-        schedule["run"] = run
-
-    atomic_write_text(output, schedule_json(schedule))
+    atomic_write_text(output, schedule.to_json())
 
 
-def schedule_json(schedule: dict) -> str:
+def schedule_json(schedule: dict | Schedule) -> str:
     """Serialize a schedule in the canonical on-disk representation."""
-    return json.dumps(schedule, indent=2) + "\n"
+    if isinstance(schedule, Schedule):
+        return schedule.to_json()
+    return Schedule.from_dict(schedule).to_json()
 
 
 def atomic_write_text(output: Path, contents: str) -> None:

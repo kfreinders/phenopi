@@ -7,9 +7,9 @@ from pathlib import Path
 import re
 from threading import Lock
 from typing import Any
-from uuid import UUID
 
 from .make_schedule import atomic_write_text
+from .schedule import RunMetadata, Schedule
 
 
 RUN_MANIFEST_VERSION = 1
@@ -21,27 +21,11 @@ def validate_run_metadata(value: Any) -> dict[str, Any] | None:
     """Validate optional run metadata while retaining legacy compatibility."""
     if value is None:
         return None
+    if isinstance(value, RunMetadata):
+        return value.to_dict()
     if not isinstance(value, dict):
         raise ValueError("run must be an object")
-    try:
-        run_id = str(UUID(str(value["id"])))
-        name = str(value["name"]).strip()
-        created_at = datetime.fromisoformat(str(value["created_at"]))
-    except (KeyError, TypeError, ValueError) as exc:
-        raise ValueError("run metadata is invalid") from exc
-    if not name or len(name) > 80:
-        raise ValueError("run name must contain 1 to 80 characters")
-    if created_at.tzinfo is None:
-        raise ValueError("run created_at must include a timezone")
-    researcher = _optional_text(value.get("researcher"), 80, "researcher")
-    notes = _optional_text(value.get("notes"), 1000, "notes")
-    return {
-        "id": run_id,
-        "name": name,
-        "researcher": researcher,
-        "notes": notes,
-        "created_at": created_at.isoformat(),
-    }
+    return RunMetadata.from_dict(value).to_dict()
 
 
 def run_directory_name(start_date: str, run: dict[str, Any]) -> str:
@@ -55,21 +39,22 @@ class RunArchive:
     def __init__(
         self,
         output_root: Path,
-        schedule: dict[str, Any],
+        schedule: dict[str, Any] | Schedule,
         schedule_hash: str,
         expected_times: list[datetime],
     ) -> None:
-        run = validate_run_metadata(schedule.get("run"))
+        schedule_data = schedule.to_dict() if isinstance(schedule, Schedule) else schedule
+        run = validate_run_metadata(schedule_data.get("run"))
         if run is None:
             raise ValueError("A run archive requires run metadata.")
         self.run = run
         self.schedule_hash = schedule_hash
         self.expected_times = expected_times
-        self.directory = output_root / run_directory_name(schedule["start_date"], run)
+        self.directory = output_root / run_directory_name(schedule_data["start_date"], run)
         self.manifest_path = self.directory / "run.json"
         self.events_path = self.directory / "capture-events.jsonl"
         self._lock = Lock()
-        self._initialize(schedule)
+        self._initialize(schedule_data)
 
     def _initialize(self, schedule: dict[str, Any]) -> None:
         existing_path = self._find_existing_manifest(self.directory.parent)
@@ -220,16 +205,3 @@ class RunArchive:
             "recent": recent,
             "last": recent[0] if recent else None,
         }
-
-
-def _optional_text(value: Any, limit: int, label: str) -> str | None:
-    if value is None:
-        return None
-    if not isinstance(value, str):
-        raise ValueError(f"run {label} must be text")
-    value = value.strip()
-    if not value:
-        return None
-    if len(value) > limit:
-        raise ValueError(f"run {label} is too long")
-    return value

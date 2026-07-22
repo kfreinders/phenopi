@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 from typing import Any
 
 from scripts.scheduling.make_schedule import (
     centered_time_range,
     every_n_minutes,
     every_n_minutes_for_duration,
-    validate_unique_expanded_times,
 )
-from scripts.scheduling.schedule_validation import validate_schedule_size
+from scripts.scheduling.schedule import Schedule
 
 
 class PastStartDateError(ValueError):
@@ -20,23 +19,39 @@ class PastStartDateError(ValueError):
 @dataclass
 class SchedulePreview:
     mode: str
-    start_date: str
-    num_days: int
-    times: list[str]
-    replicates: int
-    replicate_interval_seconds: int
+    schedule: Schedule
+
+    @property
+    def start_date(self) -> str:
+        return self.schedule.start_date.isoformat()
+
+    @property
+    def num_days(self) -> int:
+        return self.schedule.num_days
+
+    @property
+    def times(self) -> list[str]:
+        return [value.strftime("%H:%M") for value in self.schedule.times]
+
+    @property
+    def replicates(self) -> int:
+        return self.schedule.replicates
+
+    @property
+    def replicate_interval_seconds(self) -> int:
+        return self.schedule.replicate_interval_seconds
 
     @property
     def daily_time_points(self) -> int:
-        return len(self.times)
+        return self.schedule.daily_time_points
 
     @property
     def daily_captures(self) -> int:
-        return self.daily_time_points * self.replicates
+        return self.schedule.daily_captures
 
     @property
     def total_captures(self) -> int:
-        return self.daily_captures * self.num_days
+        return self.schedule.total_captures
 
     @property
     def first_time(self) -> str:
@@ -48,8 +63,7 @@ class SchedulePreview:
 
     @property
     def end_date(self) -> str:
-        start = date.fromisoformat(self.start_date)
-        return (start + timedelta(days=self.num_days - 1)).isoformat()
+        return self.schedule.end_date.isoformat()
 
     @property
     def date_range_label(self) -> str:
@@ -98,13 +112,7 @@ class SchedulePreview:
         ]
 
     def as_schedule_dict(self) -> dict[str, Any]:
-        return {
-            "start_date": self.start_date,
-            "num_days": self.num_days,
-            "replicates": self.replicates,
-            "replicate_interval_seconds": self.replicate_interval_seconds,
-            "times": self.times,
-        }
+        return self.schedule.to_dict()
 
 
 def build_schedule_preview(
@@ -139,30 +147,24 @@ def build_schedule_preview(
         centered_after_minutes=centered_after_minutes,
         centered_step_minutes=centered_step_minutes,
     )
-    validate_schedule_size(
-        num_days=num_days,
-        daily_time_points=len(times),
-        replicates=replicates,
-        replicate_interval_seconds=replicate_interval_seconds,
-    )
     try:
-        date.fromisoformat(start_date) + timedelta(days=num_days - 1)
-    except OverflowError as exc:
-        raise ValueError(
-            "The experiment date range exceeds the supported calendar."
-        ) from exc
-    validate_unique_expanded_times(
-        times=times,
-        replicates=replicates,
-        replicate_interval_seconds=replicate_interval_seconds,
-    )
+        schedule = Schedule.create(
+            start_date=start_date,
+            num_days=num_days,
+            times=times,
+            replicates=replicates,
+            replicate_interval_seconds=replicate_interval_seconds,
+        )
+    except ValueError as exc:
+        if "supported calendar" in str(exc):
+            raise ValueError(
+                "The experiment date range exceeds the supported calendar."
+            ) from exc
+        raise
+
     return SchedulePreview(
         mode=mode,
-        start_date=start_date,
-        num_days=num_days,
-        times=times,
-        replicates=replicates,
-        replicate_interval_seconds=replicate_interval_seconds,
+        schedule=schedule,
     )
 
 

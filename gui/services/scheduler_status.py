@@ -8,8 +8,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from scripts.scheduling.heartbeat import HEARTBEAT_STATES
-from scripts.scheduling.scheduler import expand_schedule
-from scripts.scheduling.run_store import validate_run_metadata
+from scripts.scheduling.schedule import Schedule
 from gui.services.storage_estimate import estimate_storage_bytes
 
 
@@ -23,21 +22,14 @@ def build_schedule_overview(
 ) -> dict[str, Any]:
     """Turn a loaded heartbeat schedule snapshot into dashboard data."""
     tz = ZoneInfo(snapshot["timezone"])
-    normalized = {
-        "start_date": snapshot["start_date"],
-        "num_days": int(snapshot["num_days"]),
-        "times": list(snapshot["times"]),
-        "replicates": int(snapshot["replicates"]),
-        "replicate_interval_seconds": int(
-            snapshot["replicate_interval_seconds"]
-        ),
-    }
-    run = validate_run_metadata(snapshot.get("run"))
+    configured = Schedule.from_dict(snapshot)
+    normalized = configured.to_dict()
+    run = configured.run.to_dict() if configured.run is not None else None
     schedule_hash = str(snapshot["hash"])
     local_now = now.astimezone(tz)
-    run_times = expand_schedule(normalized, tz)
-    start_date = date.fromisoformat(normalized["start_date"])
-    end_date = start_date + timedelta(days=normalized["num_days"] - 1)
+    run_times = configured.expand(tz)
+    start_date = configured.start_date
+    end_date = configured.end_date
 
     elapsed = [run_time for run_time in run_times if run_time < local_now]
     remaining = [run_time for run_time in run_times if run_time >= local_now]
@@ -97,7 +89,7 @@ def build_schedule_overview(
         "replicate_interval_seconds": normalized[
             "replicate_interval_seconds"
         ],
-        "daily_captures": len(normalized["times"]) * normalized["replicates"],
+        "daily_captures": configured.daily_captures,
         "total_captures": total,
         "elapsed_captures": len(elapsed),
         "remaining_captures": len(remaining),

@@ -4,7 +4,7 @@ import argparse
 import hashlib
 import json
 import subprocess
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 import time as time_module
 import sys
@@ -17,13 +17,11 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 
 from .config import SchedulerConfig, default_scheduler_config
 from .heartbeat import HEARTBEAT_INTERVAL_SECONDS, SchedulerHeartbeat
+from .schedule import Schedule
 from .schedule_validation import (
     ScheduleValidationError,
-    validate_replicate_windows,
-    validate_schedule_size,
-    validate_unique_values,
 )
-from .run_store import RunArchive, validate_run_metadata
+from .run_store import RunArchive
 
 
 def parse_hhmm(value: str) -> time:
@@ -84,81 +82,27 @@ def schedule_content_hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def load_schedule(path: Path) -> dict:
-    return json.loads(path.read_text())
+def load_schedule(path: Path) -> Schedule:
+    return Schedule.from_json(path.read_text())
 
 
-def expand_schedule(cfg: dict, tz: ZoneInfo) -> list[datetime]:
-    start_date = date.fromisoformat(cfg["start_date"])
-    num_days = int(cfg["num_days"])
-    times = sorted({parse_hhmm(t) for t in cfg["times"]})
-
-    replicates = int(cfg.get("replicates", 1))
-    replicate_interval = int(cfg.get("replicate_interval_seconds", 0))
-
-    validate_schedule_size(
-        num_days=num_days,
-        daily_time_points=len(times),
-        replicates=replicates,
-        replicate_interval_seconds=replicate_interval,
-    )
-    validate_replicate_windows(
-        [value.hour * 3600 + value.minute * 60 for value in times],
-        replicates=replicates,
-        replicate_interval_seconds=replicate_interval,
-    )
-
-    try:
-        start_date + timedelta(days=num_days - 1)
-    except OverflowError as exc:
-        raise ValueError("schedule date range exceeds the supported calendar") from exc
-
-    jobs = []
-    for day_offset in range(num_days):
-        current_day = start_date + timedelta(days=day_offset)
-        for capture_time in times:
-            base = datetime.combine(current_day, capture_time, tzinfo=tz)
-            for rep in range(replicates):
-                capture_at = base + timedelta(seconds=rep * replicate_interval)
-                if capture_at.date() != current_day:
-                    raise ValueError("replicate captures must not cross midnight")
-                jobs.append(capture_at)
-
-    validate_unique_values(
-        jobs,
-        label="expanded schedule",
-        value_name="capture time",
-        formatter=lambda dt: dt.strftime("%Y-%m-%d %H:%M:%S%z"),
-    )
-
-    return sorted(jobs)
+def expand_schedule(cfg: dict | Schedule, tz: ZoneInfo) -> list[datetime]:
+    schedule = cfg if isinstance(cfg, Schedule) else Schedule.from_dict(cfg)
+    return schedule.expand(tz)
 
 
 def build_schedule_snapshot(
-    cfg: dict,
+    cfg: dict | Schedule,
     schedule_hash: str,
     tz: ZoneInfo,
 ) -> dict:
     """Build the normalized schedule metadata published in the heartbeat."""
+    configured = cfg if isinstance(cfg, Schedule) else Schedule.from_dict(cfg)
     snapshot = {
         "hash": schedule_hash,
         "timezone": getattr(tz, "key", str(tz)),
-        "start_date": date.fromisoformat(cfg["start_date"]).isoformat(),
-        "num_days": int(cfg["num_days"]),
-        "times": sorted(
-            {
-                parse_hhmm(value).strftime("%H:%M")
-                for value in cfg["times"]
-            }
-        ),
-        "replicates": int(cfg.get("replicates", 1)),
-        "replicate_interval_seconds": int(
-            cfg.get("replicate_interval_seconds", 0)
-        ),
+        **configured.to_dict(),
     }
-    run = validate_run_metadata(cfg.get("run"))
-    if run is not None:
-        snapshot["run"] = run
     return snapshot
 
 
@@ -304,7 +248,7 @@ def poll_schedule_for_changes(
 
         cfg = load_schedule(config.schedule_path)
         expand_schedule(cfg, config.tz)
-        replacement_run = validate_run_metadata(cfg.get("run"))
+        replacement_run_id = cfg.run.id if cfg.run is not None else None
 
     except (
         ScheduleValidationError,
@@ -336,7 +280,7 @@ def poll_schedule_for_changes(
         )
         run_archive.mark_ended(
             state,
-            superseded_by=(replacement_run or {}).get("id"),
+            superseded_by=replacement_run_id,
         )
 
     print(
@@ -405,7 +349,6 @@ def run_scheduler_until_reload(
 
         cfg = load_schedule(config.schedule_path)
         run_times = expand_schedule(cfg, tz)
-        validate_run_metadata(cfg.get("run"))
     except FileNotFoundError:
         if heartbeat is not None:
             heartbeat.set_capture_status_provider(None)
@@ -442,7 +385,7 @@ def run_scheduler_until_reload(
         return False
 
     run_archive = None
-    if cfg.get("run") is not None:
+    if cfg.run is not None:
         try:
             run_archive = RunArchive(
                 config.output_dir,
