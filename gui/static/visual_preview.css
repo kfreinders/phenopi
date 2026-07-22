@@ -11,7 +11,8 @@
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 0;
-  margin: 0 0 1.25rem;
+  width: min(100%, 52rem);
+  margin: 0 auto 1.25rem;
   padding: 0;
   list-style: none;
 }
@@ -20,9 +21,10 @@
   position: relative;
   display: grid;
   grid-template-rows: 1.9rem auto;
-  justify-items: start;
+  justify-items: center;
   gap: 0.4rem;
   color: var(--muted);
+  text-align: center;
 }
 
 .workflow-step:not(:last-child)::after,
@@ -30,8 +32,8 @@
   content: "";
   position: absolute;
   top: 0.9rem;
-  right: -0.95rem;
-  left: 1.9rem;
+  right: calc(-50% + 0.95rem);
+  left: calc(50% + 0.95rem);
   height: 2px;
   transform-origin: left;
 }
