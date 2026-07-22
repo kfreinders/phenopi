@@ -72,7 +72,7 @@ def preview_schedule(
     except (OSError, ValueError) as exc:
         return _render_form(
             request,
-            form.preview_arguments(),
+            form.form_arguments(),
             error=str(exc),
         )
     return RedirectResponse(url="/schedule/review", status_code=303)

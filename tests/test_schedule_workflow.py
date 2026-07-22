@@ -127,6 +127,31 @@ def test_configure_page_discards_expired_draft_without_showing_error(
     assert f'value="{date.today().isoformat()}"' in html
 
 
+def test_rejected_preview_preserves_all_submitted_form_fields(
+    tmp_path, monkeypatch
+):
+    configure_paths(monkeypatch, tmp_path)
+    form = schedule_form_data().model_copy(
+        update={
+            "researcher": "Dr Test Researcher",
+            "notes": "Keep these experimental notes.",
+            "start_date": (date.today() - timedelta(days=1)).isoformat(),
+        }
+    )
+
+    response = schedule_routes.preview_schedule(
+        request_for("/schedule/preview"), form
+    )
+    html = response.body.decode()
+
+    assert response.status_code == 200
+    assert "Start date cannot be in the past." in html
+    assert 'value="Seedling drought response"' in html
+    assert 'value="Dr Test Researcher"' in html
+    assert "Keep these experimental notes." in html
+    assert f'value="{form.start_date}"' in html
+
+
 def test_preview_persists_draft_and_schedule_page_resumes_review(
     tmp_path, monkeypatch
 ):
