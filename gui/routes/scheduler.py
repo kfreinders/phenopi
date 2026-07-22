@@ -8,7 +8,7 @@ from gui.config import (
     SCHEDULER_HEARTBEAT_PATH,
     templates,
 )
-from gui.services.schedule_preview import load_schedule_draft
+from gui.services.schedule_preview import load_current_schedule_draft
 from gui.services.scheduler_status import (
     read_scheduler_health,
     read_scheduler_status,
@@ -20,13 +20,11 @@ router = APIRouter()
 
 def schedule_draft_state() -> str:
     """Return the scheduler-page action state for the persisted draft."""
-    if not SCHEDULE_DRAFT_PATH.exists():
-        return "none"
     try:
-        load_schedule_draft(SCHEDULE_DRAFT_PATH)
+        draft = load_current_schedule_draft(SCHEDULE_DRAFT_PATH)
     except ValueError:
         return "invalid"
-    return "ready"
+    return "ready" if draft is not None else "none"
 
 
 @router.get("/scheduler", response_class=HTMLResponse)

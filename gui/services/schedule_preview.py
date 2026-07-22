@@ -261,6 +261,19 @@ def load_schedule_draft(
     return draft, preview
 
 
+def load_current_schedule_draft(
+    path: Path = SCHEDULE_DRAFT_PATH,
+) -> tuple[ScheduleDraft, SchedulePreview] | None:
+    """Load a usable draft, removing it if its start date has expired."""
+    if not path.exists():
+        return None
+    try:
+        return load_schedule_draft(path)
+    except PastStartDateError:
+        discard_schedule_draft(path)
+        return None
+
+
 def discard_schedule_draft(path: Path = SCHEDULE_DRAFT_PATH) -> None:
     path.unlink(missing_ok=True)
 

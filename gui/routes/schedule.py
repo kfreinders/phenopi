@@ -14,13 +14,12 @@ from gui.config import (
     templates,
 )
 from gui.services.schedule_preview import (
-    PastStartDateError,
     ScheduleFormData,
     activate_schedule_draft,
     compare_schedules,
     discard_schedule_draft,
     form_defaults,
-    load_schedule_draft,
+    load_current_schedule_draft,
     persist_schedule_draft,
 )
 from gui.services.scheduler_status import read_scheduler_status
@@ -38,14 +37,11 @@ def index() -> RedirectResponse:
 
 @router.get("/schedule", response_class=HTMLResponse)
 def schedule_form(request: Request) -> HTMLResponse:
-    if SCHEDULE_DRAFT_PATH.exists():
-        try:
-            load_schedule_draft(SCHEDULE_DRAFT_PATH)
-        except PastStartDateError:
-            discard_schedule_draft(SCHEDULE_DRAFT_PATH)
-            return _render_form(request, form_defaults())
-        except ValueError as exc:
-            return _render_form(request, form_defaults(), error=str(exc))
+    try:
+        draft = load_current_schedule_draft(SCHEDULE_DRAFT_PATH)
+    except ValueError as exc:
+        return _render_form(request, form_defaults(), error=str(exc))
+    if draft is not None:
         return RedirectResponse(url="/schedule/review", status_code=303)
     return _render_form(request, form_defaults())
 
@@ -53,12 +49,12 @@ def schedule_form(request: Request) -> HTMLResponse:
 @router.get("/schedule/edit", response_class=HTMLResponse)
 def edit_schedule_draft(request: Request) -> HTMLResponse:
     try:
-        draft, _ = load_schedule_draft(SCHEDULE_DRAFT_PATH)
-    except PastStartDateError:
-        discard_schedule_draft(SCHEDULE_DRAFT_PATH)
-        return RedirectResponse(url="/schedule", status_code=303)
+        loaded = load_current_schedule_draft(SCHEDULE_DRAFT_PATH)
     except ValueError:
         return RedirectResponse(url="/schedule", status_code=303)
+    if loaded is None:
+        return RedirectResponse(url="/schedule", status_code=303)
+    draft, _ = loaded
     return _render_form(request, draft.form.form_arguments())
 
 
@@ -81,12 +77,12 @@ def preview_schedule(
 @router.get("/schedule/review", response_class=HTMLResponse)
 def review_schedule(request: Request) -> HTMLResponse:
     try:
-        draft, preview = load_schedule_draft(SCHEDULE_DRAFT_PATH)
-    except PastStartDateError:
-        discard_schedule_draft(SCHEDULE_DRAFT_PATH)
-        return RedirectResponse(url="/schedule", status_code=303)
+        loaded = load_current_schedule_draft(SCHEDULE_DRAFT_PATH)
     except ValueError as exc:
         return _render_form(request, form_defaults(), error=str(exc))
+    if loaded is None:
+        return RedirectResponse(url="/schedule", status_code=303)
+    draft, preview = loaded
     status = read_scheduler_status(SCHEDULER_HEARTBEAT_PATH)
     return templates.TemplateResponse(
         request,
@@ -108,12 +104,12 @@ def activate_schedule(
     confirm_active_replacement: Annotated[str | None, Form()] = None,
 ) -> HTMLResponse:
     try:
-        draft, preview = load_schedule_draft(SCHEDULE_DRAFT_PATH)
-    except PastStartDateError:
-        discard_schedule_draft(SCHEDULE_DRAFT_PATH)
-        return RedirectResponse(url="/schedule", status_code=303)
+        loaded = load_current_schedule_draft(SCHEDULE_DRAFT_PATH)
     except ValueError as exc:
         return _render_form(request, form_defaults(), error=str(exc))
+    if loaded is None:
+        return RedirectResponse(url="/schedule", status_code=303)
+    draft, preview = loaded
     status = read_scheduler_status(SCHEDULER_HEARTBEAT_PATH)
     context = _review_context(draft, preview, status)
 
