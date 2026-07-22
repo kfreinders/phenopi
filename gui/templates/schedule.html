@@ -35,7 +35,7 @@
       <label><span class="field-label">Notes <span class="optional">Optional</span></span>
         <textarea name="notes" maxlength="1000" rows="3">{{ form.notes or '' }}</textarea>
       </label>
-      <div class="grid">
+      <div class="grid schedule-timing-fields">
         <label>Start date
           <input
             type="date"
@@ -49,10 +49,10 @@
           <input type="number" name="num_days" min="1" max="3650" value="{{ form.num_days }}" required>
         </label>
         <label>Replicates
-          <input type="number" name="replicates" min="1" max="100" value="{{ form.replicates }}" required>
+          <input id="replicates" type="number" name="replicates" min="1" max="100" value="{{ form.replicates }}" required>
         </label>
-        <label>Replicate interval (s)
-          <input type="number" name="replicate_interval_seconds" min="0" max="86400" value="{{ form.replicate_interval_seconds }}" required>
+        <label id="replicate-interval-control" class="replicate-interval-control">Replicate interval (s)
+          <input id="replicate-interval" type="number" name="replicate_interval_seconds" min="0" max="86400" value="{{ form.replicate_interval_seconds }}" required>
         </label>
       </div>
     </fieldset>

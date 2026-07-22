@@ -97,6 +97,13 @@ def test_configure_page_makes_workflow_and_next_action_explicit(
     assert 'name="num_days" min="1" max="3650"' in html
     assert 'name="replicates" min="1" max="100"' in html
     assert f'min="{date.today().isoformat()}"' in html
+    assert 'value="1"' in html
+    assert 'id="replicate-interval-control"' in html
+    assert 'id="replicate-interval"' in html
+
+    script = (APP_DIR / "static" / "schedule.js").read_text()
+    assert "function updateReplicateInterval" in script
+    assert "interval.readOnly = !hasReplicates" in script
 
 
 def test_configure_page_discards_expired_draft_without_showing_error(
