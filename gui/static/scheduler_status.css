@@ -10,11 +10,17 @@
 .schedule-action h3 { margin: .3rem 0 .15rem; color: #05603a; }
 .schedule-action p { margin: 0; color: #475467; }
 .schedule-action .primary-link { flex: 0 0 auto; background: #067647; }
-.schedule-empty { display: grid; justify-items: center; padding: 3rem; text-align: center; }
-.schedule-empty h3 { margin: .5rem 0; }
-.schedule-empty p { margin: 0 0 1.2rem; }
-.empty-icon { display: grid; place-items: center; width: 3.5rem; height: 3.5rem; border-radius: 50%; color: var(--blue); background: var(--surface-soft); font-size: 2rem; }
+.schedule-empty { display: grid; justify-items: center; padding: 2.25rem; text-align: center; }
+.schedule-empty h3 { margin: 0 0 1rem; }
 .primary-link { padding: .7rem 1rem; border-radius: .65rem; color: white; background: var(--blue); text-decoration: none; font-weight: 750; }
+.schedule-empty .primary-link { animation: schedule-cta-pulse 1.6s ease-in-out infinite; transition: background-color 150ms ease, box-shadow 150ms ease, transform 150ms ease; }
+.schedule-empty .primary-link:hover, .schedule-empty .primary-link:focus-visible { animation: none; background: var(--blue-dark); box-shadow: 0 .5rem 1rem rgb(15 95 185 / 28%); transform: translateY(-2px); }
+.schedule-empty .primary-link:active { box-shadow: 0 .2rem .45rem rgb(15 95 185 / 22%); transform: translateY(0); }
+@keyframes schedule-cta-pulse {
+  50% {
+    box-shadow: 0 0 0 .7rem rgb(46 144 250 / 24%), 0 .35rem 1rem rgb(15 95 185 / 22%);
+  }
+}
 #schedule-dashboard { display: grid; gap: 1rem; }
 .schedule-hero { display: flex; justify-content: space-between; align-items: center; gap: 2rem; margin: 0; background: linear-gradient(135deg, #fff 55%, #edf6ff); }
 .schedule-identity h3 { margin: .65rem 0 .2rem; font-size: 1.55rem; }
@@ -103,3 +109,4 @@
 @media (max-width: 1050px) { .metric-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 760px) { .scheduler-heading, .schedule-hero, .schedule-action { align-items: flex-start; flex-direction: column; } .dashboard-grid { grid-template-columns: 1fr; } .capture-result-grid { grid-template-columns: repeat(2, 1fr); } .recent-capture { grid-template-columns: 1fr; gap: .15rem; } }
 @media (max-width: 440px) { .metric-grid, .activity-summary { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .schedule-empty .primary-link { animation: none; } }

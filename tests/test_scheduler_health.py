@@ -406,6 +406,18 @@ def test_scheduler_dashboard_has_accessible_storage_meter():
     assert "function renderStorageRisk" in dashboard_script
 
 
+def test_empty_scheduler_state_is_compact_and_has_guided_action():
+    scheduler_source, _, _ = templates.env.loader.get_source(
+        templates.env, "scheduler.html"
+    )
+    dashboard_styles = (APP_DIR / "static" / "scheduler_status.css").read_text()
+
+    assert "empty-icon" not in scheduler_source
+    assert "The scheduler is ready for an experiment schedule." not in scheduler_source
+    assert "schedule-cta-pulse" in dashboard_styles
+    assert "prefers-reduced-motion" in dashboard_styles
+
+
 def test_page_assets_are_isolated_and_cache_busted():
     base_source, _, _ = templates.env.loader.get_source(
         templates.env, "base.html"
