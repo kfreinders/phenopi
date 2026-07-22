@@ -81,11 +81,6 @@ body {
   background: #0b54a5;
   border-color: #84adff;
 }
-.tab.disabled {
-  color: var(--muted);
-  background: #edf2f7;
-}
-
 .card {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -119,7 +114,6 @@ legend {
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 1rem;
 }
-.output-grid { grid-template-columns: 1fr auto; }
 label {
   display: flex;
   flex-direction: column;
@@ -144,12 +138,11 @@ textarea { resize: vertical; }
   flex-wrap: wrap;
   gap: 1rem;
 }
-.radio-row label, .checkbox-label {
+.radio-row label {
   flex-direction: row;
   align-items: center;
   gap: 0.5rem;
 }
-.checkbox-label { align-self: end; padding-bottom: 0.65rem; }
 
 .actions {
   display: flex;
@@ -190,55 +183,10 @@ button.secondary {
   color: #05603a;
 }
 
-.stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-.stats div {
-  background: var(--surface-soft);
-  border: 1px solid var(--line);
-  border-radius: 0.75rem;
-  padding: 0.85rem;
-  color: var(--muted);
-}
-.stats span {
-  display: block;
-  font-size: 1.4rem;
-  font-weight: 800;
-  color: var(--blue-dark);
-}
-.two-column {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-.time-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-.time-list span {
-  background: #edf6ff;
-  border: 1px solid #cbe2f7;
-  padding: 0.35rem 0.55rem;
-  border-radius: 999px;
-  font-weight: 650;
-}
-pre {
-  background: #111827;
-  color: #e5e7eb;
-  border-radius: 0.85rem;
-  padding: 1rem;
-  overflow-x: auto;
-}
 code { background: #eef2f7; padding: 0.1rem 0.25rem; border-radius: 0.25rem; }
 
 @media (max-width: 760px) {
   .topbar-inner { align-items: flex-start; flex-direction: column; }
-  .two-column { grid-template-columns: 1fr; }
-  .output-grid { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

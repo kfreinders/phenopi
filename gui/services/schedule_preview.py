@@ -467,11 +467,6 @@ def _validate_start_date(start_date: str) -> None:
         raise PastStartDateError("Start date cannot be in the past.")
 
 
-def _validate_positive_int(value: int, label: str) -> None:
-    if value <= 0:
-        raise ValueError(f"{label} must be greater than 0.")
-
-
 def _time_to_minutes(value: str) -> int:
     hour, minute = value.split(":", maxsplit=1)
     return int(hour) * 60 + int(minute)

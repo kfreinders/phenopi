@@ -121,38 +121,6 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .activation-icon--rejected { color: var(--red); background: #fef3f2; }
 @keyframes activation-pulse { 50% { transform: scale(1.08); box-shadow: 0 0 0 .55rem rgb(46 144 250 / 12%); } }
 
-.preview-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: flex-start;
-  margin-bottom: 1.25rem;
-}
-
-.preview-header h2 {
-  margin: 0;
-}
-
-.preview-header p {
-  margin: 0.25rem 0 0;
-  color: #5c6b7d;
-}
-
-.preview-range {
-  padding: 0.75rem 1rem;
-  border: 1px solid #d6e4f2;
-  border-radius: 0.85rem;
-  background: #f7fbff;
-  text-align: right;
-}
-
-.preview-range-label {
-  display: block;
-  color: #5c6b7d;
-  font-size: 0.85rem;
-  margin-bottom: 0.25rem;
-}
-
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -320,15 +288,6 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 
   .visual-preview-grid {
     grid-template-columns: 1fr;
-  }
-
-  .preview-header {
-    flex-direction: column;
-  }
-
-  .preview-range {
-    width: 100%;
-    text-align: left;
   }
 
   .workflow-step { font-size: .78rem; }
