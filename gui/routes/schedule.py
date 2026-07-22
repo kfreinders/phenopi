@@ -13,15 +13,14 @@ from gui.config import (
     SCHEDULER_HEARTBEAT_PATH,
     templates,
 )
-from gui.services.schedule_preview import (
-    ScheduleFormData,
+from gui.services.schedule_comparison import compare_schedules
+from gui.services.schedule_drafts import (
     activate_schedule_draft,
-    compare_schedules,
     discard_schedule_draft,
-    form_defaults,
     load_current_schedule_draft,
     persist_schedule_draft,
 )
+from gui.services.schedule_form import ScheduleFormData, form_defaults
 from gui.services.scheduler_status import read_scheduler_status
 from gui.services.storage_estimate import assess_schedule_storage
 

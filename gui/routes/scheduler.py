@@ -8,7 +8,7 @@ from gui.config import (
     SCHEDULER_HEARTBEAT_PATH,
     templates,
 )
-from gui.services.schedule_preview import load_current_schedule_draft
+from gui.services.schedule_drafts import load_current_schedule_draft
 from gui.services.scheduler_status import (
     read_scheduler_health,
     read_scheduler_status,
