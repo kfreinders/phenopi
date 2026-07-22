@@ -31,6 +31,7 @@ def request_for(path: str) -> Request:
 def schedule_form_data() -> ScheduleFormData:
     return ScheduleFormData(
         mode="every",
+        experiment_name="Seedling drought response",
         start_date=date.today().isoformat(),
         num_days=2,
         replicates=2,

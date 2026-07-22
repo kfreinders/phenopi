@@ -50,7 +50,7 @@ def edit_schedule_draft(request: Request) -> HTMLResponse:
         draft, _ = load_schedule_draft(SCHEDULE_DRAFT_PATH)
     except ValueError:
         return RedirectResponse(url="/schedule", status_code=303)
-    return _render_form(request, draft.form.preview_arguments())
+    return _render_form(request, draft.form.form_arguments())
 
 
 @router.post("/schedule/preview", response_class=HTMLResponse)

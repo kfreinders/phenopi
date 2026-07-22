@@ -106,10 +106,14 @@ def test_schedule_form_data_parses_checkbox_and_supplies_mode_defaults():
         {
             **BASE_ARGUMENTS,
             "mode": "every",
+            "experiment_name": "  Canopy development  ",
+            "researcher": "   ",
         }
     )
 
     assert form.every_start == "08:00"
+    assert form.experiment_name == "Canopy development"
+    assert form.researcher is None
     assert form.every_end == "19:30"
     assert form.preview_arguments()["every_step_minutes"] == 30
 
@@ -120,6 +124,7 @@ def test_schedule_draft_round_trip_and_activation(tmp_path):
     form = ScheduleFormData(
         **BASE_ARGUMENTS,
         mode="every",
+        experiment_name="Canopy development",
         every_start="09:00",
         every_end="09:00",
     )
@@ -140,12 +145,32 @@ def test_schedule_draft_round_trip_and_activation(tmp_path):
         == draft.schedule_hash
     )
     assert json.loads(schedule_path.read_text())["times"] == ["09:00"]
+    activated = json.loads(schedule_path.read_text())
+    assert activated["run"]["name"] == "Canopy development"
+    assert activated["run"]["id"]
     assert not draft_path.exists()
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["", "   ", "x" * 81],
+)
+def test_schedule_form_requires_a_concise_experiment_name(value):
+    with pytest.raises(ValueError):
+        ScheduleFormData(
+            **BASE_ARGUMENTS,
+            mode="every",
+            experiment_name=value,
+        )
 
 
 def test_schedule_draft_rejects_stale_hash(tmp_path):
     path = tmp_path / "draft.json"
-    form = ScheduleFormData(**BASE_ARGUMENTS, mode="every")
+    form = ScheduleFormData(
+        **BASE_ARGUMENTS,
+        mode="every",
+        experiment_name="Canopy development",
+    )
     persist_schedule_draft(form, path)
 
     with pytest.raises(ValueError, match="replaced"):
@@ -158,7 +183,11 @@ def test_schedule_draft_rejects_stale_hash(tmp_path):
 
 def test_schedule_draft_detects_tampering_and_can_be_discarded(tmp_path):
     path = tmp_path / "draft.json"
-    form = ScheduleFormData(**BASE_ARGUMENTS, mode="every")
+    form = ScheduleFormData(
+        **BASE_ARGUMENTS,
+        mode="every",
+        experiment_name="Canopy development",
+    )
     persist_schedule_draft(form, path)
     payload = json.loads(path.read_text())
     payload["schedule"]["num_days"] = 99

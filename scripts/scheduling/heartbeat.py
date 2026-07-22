@@ -7,6 +7,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
+from collections.abc import Callable
 
 
 HEARTBEAT_FILENAME = "scheduler-heartbeat.json"
@@ -33,7 +34,15 @@ class SchedulerHeartbeat:
         self._message = "The scheduler is waiting for a schedule file."
         self._schedule: dict | None = None
         self._last_capture = self._load_previous_capture()
+        self._capture_status_provider: Callable[[], dict] | None = None
         self._lock = Lock()
+
+    def set_capture_status_provider(
+        self,
+        provider: Callable[[], dict] | None,
+    ) -> None:
+        with self._lock:
+            self._capture_status_provider = provider
 
     def set_state(
         self,
@@ -85,6 +94,14 @@ class SchedulerHeartbeat:
             "last_capture": self._last_capture,
             "storage": self._storage_payload(),
         }
+        if self._capture_status_provider is not None:
+            capture_status = self._capture_status_provider()
+            payload["capture_summary"] = capture_status.get("summary")
+            payload["recent_captures"] = capture_status.get("recent", [])
+            payload["last_capture"] = capture_status.get("last")
+        else:
+            payload["capture_summary"] = None
+            payload["recent_captures"] = []
 
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)

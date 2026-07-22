@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 from scripts.scheduling.heartbeat import HEARTBEAT_STATES
 from scripts.scheduling.scheduler import expand_schedule
+from scripts.scheduling.run_store import validate_run_metadata
 
 
 STALE_AFTER = timedelta(seconds=30)
@@ -30,6 +31,7 @@ def build_schedule_overview(
             snapshot["replicate_interval_seconds"]
         ),
     }
+    run = validate_run_metadata(snapshot.get("run"))
     schedule_hash = str(snapshot["hash"])
     local_now = now.astimezone(tz)
     run_times = expand_schedule(normalized, tz)
@@ -112,6 +114,7 @@ def build_schedule_overview(
             }
             for index in range(normalized["replicates"])
         ],
+        "run": run,
     }
 
 
@@ -220,6 +223,8 @@ def read_scheduler_status(
         "schedule_is_last_reported": health["status"] == "stale"
         and overview is not None,
         "last_capture": _optional_dict(payload.get("last_capture")),
+        "capture_summary": _optional_dict(payload.get("capture_summary")),
+        "recent_captures": _dict_list(payload.get("recent_captures")),
         "storage": _optional_dict(payload.get("storage")),
     }
 
@@ -286,6 +291,8 @@ def _unavailable_status() -> dict[str, Any]:
         "schedule_error": None,
         "schedule_is_last_reported": False,
         "last_capture": None,
+        "capture_summary": None,
+        "recent_captures": [],
         "storage": None,
     }
 
@@ -321,3 +328,9 @@ def _iso_or_none(value: datetime | None) -> str | None:
 
 def _optional_dict(value: Any) -> dict | None:
     return value if isinstance(value, dict) else None
+
+
+def _dict_list(value: Any) -> list[dict]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]

@@ -42,20 +42,24 @@ function renderSchedule(data) {
   }
   byId("schedule-empty").hidden = Boolean(schedule);
   byId("schedule-dashboard").hidden = !schedule;
-  renderScheduleAction(schedule);
+  renderScheduleAction(schedule, data.capture_summary);
   if (!schedule) return;
 
   const lifecycle = byId("schedule-lifecycle");
   lifecycle.className = `lifecycle-badge lifecycle-badge--${schedule.lifecycle}`;
   lifecycle.textContent = lifecycleLabels[schedule.lifecycle] ?? schedule.lifecycle;
-  byId("schedule-title").textContent = schedule.lifecycle === "finished" ? "Completed experiment schedule" : "Current experiment schedule";
+  byId("schedule-title").textContent = schedule.run?.name ?? (schedule.lifecycle === "finished" ? "Completed experiment schedule" : "Current experiment schedule");
   byId("schedule-range").textContent = `${schedule.start_date} → ${schedule.end_date} · ${schedule.num_days} day${schedule.num_days === 1 ? "" : "s"}`;
+  const runDetails = byId("schedule-run-details");
+  const details = [schedule.run?.researcher, schedule.run?.notes].filter(Boolean);
+  runDetails.hidden = details.length === 0;
+  runDetails.textContent = details.join(" · ");
 
   const progress = schedule.progress_percent;
   byId("progress-percent").textContent = `${progress.toFixed(1)}%`;
   byId("progress-ring").style.setProperty("--progress", `${progress * 3.6}deg`);
   byId("progress-ring").setAttribute("aria-label", `${progress.toFixed(1)} percent planned schedule progress`);
-  byId("progress-count").textContent = `${schedule.elapsed_captures} / ${schedule.total_captures} planned`;
+  byId("progress-count").textContent = `${schedule.elapsed_captures} / ${schedule.total_captures} planned elapsed`;
   byId("progress-day").textContent = schedule.current_day ? `Day ${schedule.current_day} of ${schedule.num_days}` : (schedule.lifecycle === "finished" ? "Schedule complete" : `${schedule.num_days} scheduled days`);
   byId("metric-next").textContent = formatDateTime(schedule.next_capture_at);
   byId("metric-next-relative").textContent = relativeTime(schedule.next_capture_at);
@@ -67,6 +71,8 @@ function renderSchedule(data) {
   byId("metric-last-capture").textContent = capture ? capture.status[0].toUpperCase() + capture.status.slice(1) : "No result yet";
   byId("metric-last-capture-time").textContent = capture ? formatDateTime(capture.scheduled_at) : "Waiting for the first capture";
   if (capture?.message) captureCard.title = capture.message;
+
+  renderCaptureResults(data.capture_summary, data.recent_captures ?? []);
 
   const storage = data.storage;
   const storageCard = byId("storage-card");
@@ -109,7 +115,32 @@ function renderSchedule(data) {
   byId("replicate-burst").replaceChildren(...schedule.replicate_offsets.map((replicate) => { const item = document.createElement("div"); const dot = document.createElement("strong"); dot.textContent = replicate.number; const offset = document.createElement("span"); offset.textContent = `+${replicate.offset_seconds}s`; item.append(dot, offset); return item; }));
 }
 
-function renderScheduleAction(schedule) {
+function renderCaptureResults(summary, recent) {
+  const section = byId("capture-results");
+  section.hidden = !summary;
+  if (!summary) return;
+  byId("capture-success").textContent = summary.succeeded;
+  byId("capture-failed").textContent = summary.failed;
+  byId("capture-missed").textContent = summary.missed;
+  byId("capture-remaining").textContent = summary.remaining;
+  byId("capture-unreported").textContent = summary.elapsed_unreported;
+  const shell = byId("recent-captures-shell");
+  shell.hidden = recent.length === 0;
+  byId("recent-captures").replaceChildren(...recent.map((capture) => {
+    const row = document.createElement("div");
+    row.className = `recent-capture recent-capture--${capture.status}`;
+    const state = document.createElement("strong");
+    state.textContent = capture.status[0].toUpperCase() + capture.status.slice(1);
+    const time = document.createElement("span");
+    time.textContent = formatDateTime(capture.scheduled_at);
+    const message = document.createElement("small");
+    message.textContent = capture.message;
+    row.append(state, time, message);
+    return row;
+  }));
+}
+
+function renderScheduleAction(schedule, captureSummary) {
   const action = byId("schedule-action");
   const emptyLink = byId("schedule-empty-link");
   emptyLink.href = scheduleDraftState === "ready" ? "/schedule/review" : "/schedule";
@@ -124,7 +155,10 @@ function renderScheduleAction(schedule) {
   } else if (scheduleDraftState === "invalid") {
     content = ["Schedule draft", "Draft needs attention", "The saved draft could not be read. Open the schedule builder to correct it.", "Open schedule builder", "/schedule"];
   } else if (schedule.lifecycle === "finished") {
-    content = ["Experiment complete", "Experiment finished", "This completed schedule remains available below for reference.", "Create next schedule", "/schedule"];
+    const issues = captureSummary && (captureSummary.failed + captureSummary.missed + captureSummary.elapsed_unreported > 0);
+    content = issues
+      ? ["Experiment complete", "Experiment finished with capture issues", "Review the recorded capture outcomes below before closing this dataset.", "Create next schedule", "/schedule"]
+      : ["Experiment complete", "Experiment finished", "This completed schedule remains available below for reference.", "Create next schedule", "/schedule"];
   }
   if (!content) return;
 

@@ -36,6 +36,7 @@ def request_for(path: str) -> Request:
 def draft_form() -> ScheduleFormData:
     return ScheduleFormData(
         mode="every",
+        experiment_name="Navigation test",
         start_date=date.today().isoformat(),
         num_days=2,
         replicates=1,
@@ -54,7 +55,7 @@ def test_main_navigation_contains_only_implemented_pages_in_workflow_order():
     schedule = source.index('href="/schedule"')
     scheduler = source.index('href="/scheduler"')
 
-    assert scheduler < camera < schedule
+    assert scheduler < schedule < camera
     assert "tab disabled" not in source
     assert "Acquisition" not in source
     assert "Canopy analysis" not in source
@@ -104,6 +105,10 @@ def test_scheduler_page_has_one_context_sensitive_next_action():
     assert 'schedule.lifecycle === "finished"' in script
     assert '"Review draft", "/schedule/review"' in script
     assert '"Create next schedule", "/schedule"' in script
-    assert script.index('scheduleDraftState === "ready"') < script.index(
+    action_renderer = script[script.index("function renderScheduleAction") :]
+    assert action_renderer.index('scheduleDraftState === "ready"') < action_renderer.index(
         'schedule.lifecycle === "finished"'
     )
+    assert 'id="capture-results"' in source
+    assert "function renderCaptureResults" in script
+    assert "Experiment finished with capture issues" in script

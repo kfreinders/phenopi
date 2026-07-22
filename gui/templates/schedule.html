@@ -24,6 +24,17 @@
 
     <fieldset>
       <legend>Experiment</legend>
+      <div class="grid experiment-details">
+        <label><span class="field-label">Experiment name</span>
+          <input type="text" name="experiment_name" maxlength="80" value="{{ form.experiment_name }}" required>
+        </label>
+        <label><span class="field-label">Researcher <span class="optional">Optional</span></span>
+          <input type="text" name="researcher" maxlength="80" value="{{ form.researcher or '' }}">
+        </label>
+      </div>
+      <label><span class="field-label">Notes <span class="optional">Optional</span></span>
+        <textarea name="notes" maxlength="1000" rows="3">{{ form.notes or '' }}</textarea>
+      </label>
       <div class="grid">
         <label>Start date
           <input

@@ -3,9 +3,10 @@ import hashlib
 import json
 import subprocess
 from types import SimpleNamespace
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
+from uuid import uuid4
 
 import pytest
 from apscheduler.jobstores.memory import MemoryJobStore
@@ -228,6 +229,7 @@ def test_jobstore_paths_and_stale_cleanup(tmp_path):
 class FakeHeartbeat:
     def __init__(self):
         self.states = []
+        self.capture_status_provider = None
 
     def set_state(self, state, message, **kwargs):
         self.states.append((state, message, kwargs))
@@ -235,6 +237,25 @@ class FakeHeartbeat:
 
     def write(self):
         return True
+
+    def set_capture_status_provider(self, provider):
+        self.capture_status_provider = provider
+
+
+def test_run_capture_can_use_an_isolated_run_directory(
+    scheduler_config, monkeypatch, tmp_path
+):
+    calls = []
+    monkeypatch.setattr(
+        scheduler_module.subprocess,
+        "run",
+        lambda command, check: calls.append((command, check)),
+    )
+    run_directory = tmp_path / "captures" / "run-one"
+
+    scheduler_module.run_capture(scheduler_config, run_directory)
+
+    assert calls[0][0][-1] == str(run_directory)
 
 
 class FakeScheduler:
@@ -371,6 +392,45 @@ def test_scheduler_setup_adds_control_and_future_capture_jobs(
     assert len(fake_scheduler.listeners) == 1
     assert heartbeat.states[0][0] == "running"
     assert heartbeat.states[0][2]["schedule"]["times"] == ["09:00"]
+
+
+def test_named_run_uses_isolated_capture_directory_and_status_provider(
+    scheduler_config, monkeypatch
+):
+    tomorrow = date.today() + timedelta(days=1)
+    run = {
+        "id": str(uuid4()),
+        "name": "Tray A drought response",
+        "researcher": None,
+        "notes": None,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    write_schedule(
+        scheduler_config.schedule_path,
+        start_date=tomorrow.isoformat(),
+        run=run,
+    )
+    fake_scheduler = FakeScheduler()
+    heartbeat = FakeHeartbeat()
+    monkeypatch.setattr(
+        scheduler_module,
+        "make_scheduler",
+        lambda config, path: fake_scheduler,
+    )
+
+    scheduler_module.run_scheduler_until_reload(scheduler_config, heartbeat)
+
+    capture_job = next(
+        kwargs
+        for _, kwargs in fake_scheduler.jobs
+        if kwargs["id"].startswith("capture_")
+    )
+    run_directory = capture_job["args"][1]
+    assert run_directory.parent == scheduler_config.output_dir
+    assert run_directory.name.startswith(tomorrow.isoformat())
+    assert (run_directory / "run.json").exists()
+    assert heartbeat.capture_status_provider()["summary"]["total"] == 1
+    assert heartbeat.states[0][2]["schedule"]["run"]["name"] == run["name"]
 
 
 def test_config_from_args_uses_explicit_values(monkeypatch, scheduler_config):

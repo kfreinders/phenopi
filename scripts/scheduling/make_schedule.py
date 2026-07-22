@@ -282,6 +282,7 @@ def write_schedule(
     times: list[str],
     replicates: int = 1,
     replicate_interval_seconds: int = 0,
+    run: dict | None = None,
     overwrite: bool = False,
 ) -> None:
     try:
@@ -314,6 +315,8 @@ def write_schedule(
         "replicate_interval_seconds": replicate_interval_seconds,
         "times": times,
     }
+    if run is not None:
+        schedule["run"] = run
 
     atomic_write_text(output, schedule_json(schedule))
 

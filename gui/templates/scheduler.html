@@ -40,6 +40,7 @@
         <span id="schedule-lifecycle" class="lifecycle-badge">—</span>
         <h3 id="schedule-title">Current schedule</h3>
         <p id="schedule-range">—</p>
+        <p id="schedule-run-details" class="schedule-run-details" hidden></p>
       </div>
       <div id="progress-ring" class="progress-ring" role="img" aria-label="Schedule progress">
         <div><strong id="progress-percent">0%</strong><span id="progress-count">planned progress</span><small id="progress-day"></small></div>
@@ -51,6 +52,23 @@
       <article><span>Final capture</span><strong id="metric-final">—</strong></article>
       <article id="last-capture-card"><span>Latest actual capture</span><strong id="metric-last-capture">—</strong><small id="metric-last-capture-time"></small></article>
       <article id="storage-card"><span>Capture storage</span><strong id="metric-storage">—</strong><small id="metric-storage-used"></small></article>
+    </section>
+
+    <section id="capture-results" class="card capture-results" hidden>
+      <div class="section-heading">
+        <div><h3>Capture results</h3><p>Recorded outcomes for the current experiment run.</p></div>
+      </div>
+      <div class="capture-result-grid">
+        <div class="capture-result capture-result--success"><span>Successful</span><strong id="capture-success">0</strong></div>
+        <div class="capture-result capture-result--failure"><span>Failed</span><strong id="capture-failed">0</strong></div>
+        <div class="capture-result capture-result--missed"><span>Missed</span><strong id="capture-missed">0</strong></div>
+        <div class="capture-result"><span>Remaining</span><strong id="capture-remaining">0</strong></div>
+        <div class="capture-result capture-result--warning"><span>Awaiting result</span><strong id="capture-unreported">0</strong></div>
+      </div>
+      <div id="recent-captures-shell" class="recent-captures-shell" hidden>
+        <h4>Recent outcomes</h4>
+        <div id="recent-captures" class="recent-captures"></div>
+      </div>
     </section>
 
     <section class="card overview-card">

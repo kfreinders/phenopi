@@ -27,6 +27,8 @@ def write_heartbeat(
     schedule=None,
     last_capture=None,
     storage=None,
+    capture_summary=None,
+    recent_captures=None,
 ):
     path.write_text(
         json.dumps(
@@ -38,6 +40,8 @@ def write_heartbeat(
                 "schedule": schedule,
                 "last_capture": last_capture,
                 "storage": storage,
+                "capture_summary": capture_summary,
+                "recent_captures": recent_captures or [],
             }
         )
     )
@@ -99,6 +103,29 @@ def test_heartbeat_reports_capture_storage(tmp_path, monkeypatch):
         "free_bytes": 400,
         "used_percent": 60.0,
     }
+
+
+def test_heartbeat_publishes_capture_ledger_summary(tmp_path):
+    heartbeat = SchedulerHeartbeat(tmp_path)
+    summary = {
+        "total": 2,
+        "succeeded": 1,
+        "failed": 0,
+        "missed": 0,
+        "remaining": 1,
+        "elapsed_unreported": 0,
+    }
+    recent = [{"status": "succeeded", "scheduled_at": NOW.isoformat()}]
+    heartbeat.set_capture_status_provider(
+        lambda: {"summary": summary, "recent": recent, "last": recent[0]}
+    )
+
+    heartbeat.write()
+
+    payload = json.loads(heartbeat.path.read_text())
+    assert payload["capture_summary"] == summary
+    assert payload["recent_captures"] == recent
+    assert payload["last_capture"] == recent[0]
 
 
 def test_heartbeat_restores_capture_for_same_schedule(tmp_path):
@@ -166,17 +193,23 @@ def test_status_exposes_optional_capture_and_storage(tmp_path):
     heartbeat_path = tmp_path / "heartbeat.json"
     capture = {"status": "failed", "message": "camera error"}
     storage = {"free_bytes": 100, "used_percent": 90.0}
+    summary = {"total": 2, "succeeded": 1}
+    recent = [{"status": "succeeded"}]
     write_heartbeat(
         heartbeat_path,
         state="running",
         last_capture=capture,
         storage=storage,
+        capture_summary=summary,
+        recent_captures=recent,
     )
 
     result = read_scheduler_status(heartbeat_path, now=NOW)
 
     assert result["last_capture"] == capture
     assert result["storage"] == storage
+    assert result["capture_summary"] == summary
+    assert result["recent_captures"] == recent
 
 
 def schedule_snapshot():
@@ -206,6 +239,21 @@ def test_schedule_overview_lifecycle(now, lifecycle, elapsed, remaining):
     assert overview["elapsed_captures"] == elapsed
     assert overview["remaining_captures"] == remaining
     assert overview["total_captures"] == 8
+
+
+def test_schedule_overview_exposes_valid_run_identity():
+    snapshot = schedule_snapshot()
+    snapshot["run"] = {
+        "id": "7d781e86-49f1-4e70-9c1e-360d051aef90",
+        "name": "Tray A drought response",
+        "researcher": "Researcher One",
+        "notes": None,
+        "created_at": NOW.isoformat(),
+    }
+
+    overview = build_schedule_overview(snapshot, now=NOW)
+
+    assert overview["run"]["name"] == "Tray A drought response"
 
 
 @pytest.mark.parametrize(

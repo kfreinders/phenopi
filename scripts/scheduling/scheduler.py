@@ -21,6 +21,7 @@ from .schedule_validation import (
     ScheduleValidationError,
     validate_unique_values,
 )
+from .run_store import RunArchive, validate_run_metadata
 
 
 def parse_hhmm(value: str) -> time:
@@ -124,7 +125,7 @@ def build_schedule_snapshot(
     tz: ZoneInfo,
 ) -> dict:
     """Build the normalized schedule metadata published in the heartbeat."""
-    return {
+    snapshot = {
         "hash": schedule_hash,
         "timezone": getattr(tz, "key", str(tz)),
         "start_date": date.fromisoformat(cfg["start_date"]).isoformat(),
@@ -140,9 +141,16 @@ def build_schedule_snapshot(
             cfg.get("replicate_interval_seconds", 0)
         ),
     }
+    run = validate_run_metadata(cfg.get("run"))
+    if run is not None:
+        snapshot["run"] = run
+    return snapshot
 
 
-def run_capture(config: SchedulerConfig) -> None:
+def run_capture(
+    config: SchedulerConfig,
+    output_dir: Path | None = None,
+) -> None:
     """
     Execute the capture script as a subprocess.
 
@@ -166,7 +174,7 @@ def run_capture(config: SchedulerConfig) -> None:
             str(config.python_bin),
             str(config.capture_script),
             "--output-dir",
-            str(config.output_dir),
+            str(output_dir or config.output_dir),
         ],
         check=True,
     )
@@ -176,6 +184,7 @@ def record_capture_event(
     event,
     heartbeat: SchedulerHeartbeat,
     schedule_hash: str,
+    run_archive: RunArchive | None = None,
 ) -> None:
     """Record the latest capture result from an APScheduler job event."""
     if not event.job_id.startswith("capture_"):
@@ -189,15 +198,20 @@ def record_capture_event(
     else:
         status = "failed"
         message = str(event.exception) if event.exception else "Capture failed."
-    heartbeat.record_capture(
-        {
+    result = {
             "schedule_hash": schedule_hash,
             "status": status,
             "scheduled_at": event.scheduled_run_time.isoformat(),
             "recorded_at": datetime.now(timezone.utc).isoformat(),
             "message": message,
         }
-    )
+    if run_archive is not None:
+        result = run_archive.record(
+            scheduled_at=event.scheduled_run_time,
+            status=status,
+            message=message,
+        )
+    heartbeat.record_capture(result)
 
 
 def make_scheduler(
@@ -243,6 +257,7 @@ def poll_schedule_for_changes(
     config: SchedulerConfig,
     active_schedule_hash: str,
     heartbeat: SchedulerHeartbeat | None = None,
+    run_archive: RunArchive | None = None,
 ) -> None:
     """
     Check whether the schedule file has changed.
@@ -274,6 +289,7 @@ def poll_schedule_for_changes(
 
         cfg = load_schedule(config.schedule_path)
         expand_schedule(cfg, config.tz)
+        replacement_run = validate_run_metadata(cfg.get("run"))
 
     except (
         ScheduleValidationError,
@@ -294,6 +310,19 @@ def poll_schedule_for_changes(
             f"new schedule is not valid: {exc}. Keeping current schedule."
         )
         return
+
+    if run_archive is not None:
+        now = datetime.now(config.tz)
+        state = (
+            "completed"
+            if run_archive.expected_times
+            and now > run_archive.expected_times[-1]
+            else "superseded"
+        )
+        run_archive.mark_ended(
+            state,
+            superseded_by=(replacement_run or {}).get("id"),
+        )
 
     print(
         "[scheduler] Schedule file changed and the new schedule is valid. "
@@ -361,8 +390,10 @@ def run_scheduler_until_reload(
 
         cfg = load_schedule(config.schedule_path)
         run_times = expand_schedule(cfg, tz)
+        validate_run_metadata(cfg.get("run"))
     except FileNotFoundError:
         if heartbeat is not None:
+            heartbeat.set_capture_status_provider(None)
             heartbeat.set_state(
                 "waiting_for_schedule",
                 "The scheduler is waiting for a schedule file.",
@@ -383,6 +414,7 @@ def run_scheduler_until_reload(
     ) as exc:
         error_message = describe_schedule_load_error(exc)
         if heartbeat is not None:
+            heartbeat.set_capture_status_provider(None)
             heartbeat.set_state(
                 "invalid_schedule",
                 f"The scheduler could not load the schedule: {error_message}",
@@ -394,6 +426,27 @@ def run_scheduler_until_reload(
         )
         return False
 
+    run_archive = None
+    if cfg.get("run") is not None:
+        try:
+            run_archive = RunArchive(
+                config.output_dir,
+                cfg,
+                schedule_hash,
+                run_times,
+            )
+            run_archive.record_unreported_past(datetime.now(tz))
+        except (OSError, ValueError) as exc:
+            if heartbeat is not None:
+                heartbeat.set_capture_status_provider(None)
+                heartbeat.set_state(
+                    "invalid_schedule",
+                    f"The run archive could not be prepared: {exc}",
+                    schedule=None,
+                )
+            print(f"[scheduler] Invalid run archive: {exc}", flush=True)
+            return False
+
     scheduler = make_scheduler(config, jobstore_path)
 
     if heartbeat is not None:
@@ -402,6 +455,7 @@ def run_scheduler_until_reload(
                 event,
                 heartbeat,
                 schedule_hash,
+                run_archive,
             ),
             EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED,
         )
@@ -410,7 +464,7 @@ def run_scheduler_until_reload(
         poll_schedule_for_changes,
         trigger="interval",
         seconds=config.reload_interval.total_seconds(),
-        args=[scheduler, config, schedule_hash, heartbeat],
+        args=[scheduler, config, schedule_hash, heartbeat, run_archive],
         id="poll_schedule",
         max_instances=1,
         replace_existing=True,
@@ -418,6 +472,17 @@ def run_scheduler_until_reload(
     )
 
     if heartbeat is not None:
+        if run_archive is not None:
+            def capture_status() -> dict:
+                now = datetime.now(tz)
+                payload = run_archive.status_payload(now)
+                if run_times and now > run_times[-1]:
+                    run_archive.mark_ended("completed")
+                return payload
+
+            heartbeat.set_capture_status_provider(capture_status)
+        else:
+            heartbeat.set_capture_status_provider(None)
         heartbeat.set_state(
             "running",
             "The scheduler is running with a valid schedule.",
@@ -446,7 +511,7 @@ def run_scheduler_until_reload(
             run_capture,
             trigger="date",
             run_date=run_time,
-            args=[config],
+            args=[config, run_archive.directory if run_archive else None],
             id=f"capture_{run_time.isoformat()}",
             misfire_grace_time=int(config.misfire_grace.total_seconds()),
             max_instances=1,
@@ -488,6 +553,7 @@ def wait_for_schedule(
 
     while not config.schedule_path.exists():
         if heartbeat is not None:
+            heartbeat.set_capture_status_provider(None)
             heartbeat.set_state(
                 "waiting_for_schedule",
                 "The scheduler is waiting for a schedule file.",

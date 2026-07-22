@@ -5,8 +5,9 @@ from datetime import date, datetime, timedelta, timezone
 import hashlib
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from gui.config import DEFAULT_SCHEDULE_PATH, SCHEDULE_DRAFT_PATH
 from scripts.scheduling.make_schedule import (
@@ -20,13 +21,16 @@ from scripts.scheduling.make_schedule import (
 )
 
 
-DRAFT_VERSION = 1
+DRAFT_VERSION = 2
 
 
 class ScheduleFormData(BaseModel):
     """Typed representation of the schedule builder's submitted fields."""
 
     mode: str
+    experiment_name: str
+    researcher: str | None = None
+    notes: str | None = None
     start_date: str
     num_days: int
     replicates: int
@@ -43,7 +47,36 @@ class ScheduleFormData(BaseModel):
     centered_step_minutes: int = 15
 
     def preview_arguments(self) -> dict[str, Any]:
+        return self.model_dump(
+            exclude={"experiment_name", "researcher", "notes"}
+        )
+
+    def form_arguments(self) -> dict[str, Any]:
         return self.model_dump()
+
+    @field_validator("experiment_name")
+    @classmethod
+    def validate_experiment_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Experiment name is required.")
+        if len(value) > 80:
+            raise ValueError("Experiment name must be 80 characters or fewer.")
+        return value
+
+    @field_validator("researcher", "notes")
+    @classmethod
+    def normalize_optional_text(cls, value: str | None, info) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            return None
+        limit = 80 if info.field_name == "researcher" else 1000
+        if len(value) > limit:
+            label = "Researcher" if info.field_name == "researcher" else "Notes"
+            raise ValueError(f"{label} must be {limit} characters or fewer.")
+        return value
 
 
 @dataclass
@@ -142,6 +175,9 @@ class SchedulePreview:
 def form_defaults() -> dict[str, Any]:
     return {
         "mode": "every",
+        "experiment_name": "",
+        "researcher": "",
+        "notes": "",
         "start_date": date.today().isoformat(),
         "num_days": 14,
         "replicates": 3,
@@ -181,7 +217,14 @@ def persist_schedule_draft(
     path: Path = SCHEDULE_DRAFT_PATH,
 ) -> ScheduleDraft:
     preview = build_schedule_preview(**form.preview_arguments())
-    schedule = preview.as_schedule_dict()
+    run = {
+        "id": str(uuid4()),
+        "name": form.experiment_name,
+        "researcher": form.researcher,
+        "notes": form.notes,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    schedule = {**preview.as_schedule_dict(), "run": run}
     draft = ScheduleDraft(
         created_at=datetime.now(timezone.utc).isoformat(),
         form=form,
@@ -202,7 +245,11 @@ def load_schedule_draft(
     if draft.version != DRAFT_VERSION:
         raise ValueError("The saved schedule draft uses an unsupported version.")
     preview = build_schedule_preview(**draft.form.preview_arguments())
-    if preview.as_schedule_dict() != draft.schedule:
+    expected_schedule = {
+        **preview.as_schedule_dict(),
+        "run": draft.schedule.get("run"),
+    }
+    if expected_schedule != draft.schedule:
         raise ValueError("The saved schedule draft is inconsistent.")
     if _schedule_hash(draft.schedule) != draft.schedule_hash:
         raise ValueError("The saved schedule draft has changed unexpectedly.")
@@ -231,6 +278,7 @@ def activate_schedule_draft(
         times=preview.times,
         replicates=preview.replicates,
         replicate_interval_seconds=preview.replicate_interval_seconds,
+        run=draft.schedule["run"],
         overwrite=True,
     )
     discard_schedule_draft(draft_path)

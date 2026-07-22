@@ -18,6 +18,7 @@
 .schedule-hero { display: flex; justify-content: space-between; align-items: center; gap: 2rem; margin: 0; background: linear-gradient(135deg, #fff 55%, #edf6ff); }
 .schedule-identity h3 { margin: .65rem 0 .2rem; font-size: 1.55rem; }
 .schedule-identity p { margin: 0 0 .5rem; }
+.schedule-identity .schedule-run-details { max-width: 42rem; color: var(--muted); white-space: pre-wrap; }
 .lifecycle-badge { display: inline-flex; padding: .35rem .65rem; border-radius: 999px; font-size: .78rem; font-weight: 800; text-transform: uppercase; }
 .lifecycle-badge--active { color: #067647; background: #dcfae6; }
 .lifecycle-badge--upcoming { color: #175cd3; background: #dbeafe; }
@@ -37,6 +38,23 @@
 .metric-state--succeeded { border-color: #abefc6 !important; background: #ecfdf3 !important; }
 .metric-state--failed, .metric-state--missed, .metric-state--critical { border-color: #fecdca !important; background: #fef3f2 !important; }
 .metric-state--warning { border-color: #fedf89 !important; background: #fffaeb !important; }
+.capture-results { margin: 0; }
+.capture-result-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .65rem; margin-top: 1rem; }
+.capture-result { padding: .8rem; border: 1px solid var(--line); border-radius: .75rem; background: #f9fafb; }
+.capture-result span, .capture-result strong { display: block; }
+.capture-result span { color: var(--muted); font-size: .72rem; font-weight: 700; }
+.capture-result strong { margin-top: .2rem; color: var(--blue-dark); font-size: 1.35rem; }
+.capture-result--success { border-color: #abefc6; background: #ecfdf3; }
+.capture-result--failure { border-color: #fecdca; background: #fef3f2; }
+.capture-result--missed, .capture-result--warning { border-color: #fedf89; background: #fffaeb; }
+.recent-captures-shell { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.recent-captures-shell h4 { margin: 0 0 .6rem; }
+.recent-captures { display: grid; gap: .45rem; }
+.recent-capture { display: grid; grid-template-columns: 6rem 11rem 1fr; gap: .7rem; align-items: baseline; padding: .55rem .7rem; border-radius: .6rem; background: #f9fafb; }
+.recent-capture strong, .recent-capture span, .recent-capture small { font-size: .75rem; }
+.recent-capture--succeeded strong { color: #067647; }
+.recent-capture--failed strong { color: var(--red); }
+.recent-capture--missed strong { color: #93370d; }
 .overview-card { margin: 0; }
 .section-heading h3 { margin: 0; }
 .section-heading p { margin: .25rem 0 0; }
@@ -78,5 +96,5 @@
 .replicate-burst span { color: var(--muted); font-size: .72rem; font-weight: 700; }
 [hidden] { display: none !important; }
 @media (max-width: 1050px) { .metric-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 760px) { .scheduler-heading, .schedule-hero, .schedule-action { align-items: flex-start; flex-direction: column; } .dashboard-grid { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .scheduler-heading, .schedule-hero, .schedule-action { align-items: flex-start; flex-direction: column; } .dashboard-grid { grid-template-columns: 1fr; } .capture-result-grid { grid-template-columns: repeat(2, 1fr); } .recent-capture { grid-template-columns: 1fr; gap: .15rem; } }
 @media (max-width: 440px) { .metric-grid, .activity-summary { grid-template-columns: 1fr; } }
