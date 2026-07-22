@@ -188,17 +188,23 @@ def _render_form(
 
 def _review_context(draft, preview, status: dict) -> dict:
     active_schedule = status.get("schedule")
+    comparable_schedule = (
+        active_schedule
+        if active_schedule
+        and active_schedule.get("lifecycle") in {"upcoming", "active"}
+        else None
+    )
     return {
         "active_tab": "schedule",
         "current_step": 2,
         "draft": draft,
         "preview": preview,
-        "comparison": compare_schedules(preview, active_schedule),
+        "comparison": compare_schedules(preview, comparable_schedule),
         "scheduler_status": status,
         "can_activate": status["status"] not in {"stale", "unavailable"},
         "already_active": bool(
-            active_schedule
-            and active_schedule.get("hash") == draft.schedule_hash
+            comparable_schedule
+            and comparable_schedule.get("hash") == draft.schedule_hash
         ),
         "replacing_active": bool(
             active_schedule and active_schedule.get("lifecycle") == "active"

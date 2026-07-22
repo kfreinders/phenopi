@@ -38,11 +38,12 @@
 </section>
 {% endif %}
 
+{% if comparison.has_active_schedule %}
 <section class="comparison-card card">
   <div class="card-header">
     <div>
-      <h3>{% if comparison.has_active_schedule %}Changes from active schedule{% else %}New schedule{% endif %}</h3>
-      <p>{% if comparison.has_active_schedule %}Changed values are highlighted.{% else %}No schedule is currently loaded by the scheduler.{% endif %}</p>
+      <h3>Changes from active schedule</h3>
+      <p>Changed values are highlighted.</p>
     </div>
   </div>
   <div class="comparison-table" role="table" aria-label="Active and draft schedule comparison">
@@ -56,6 +57,7 @@
     {% endfor %}
   </div>
 </section>
+{% endif %}
 
 {% include "schedule_preview.html" %}
 

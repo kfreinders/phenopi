@@ -153,6 +153,35 @@ def test_review_prominently_identifies_an_already_active_schedule(
     assert ">Already active</button>" in html
 
 
+def test_review_does_not_compare_draft_with_a_finished_schedule(
+    tmp_path, monkeypatch
+):
+    draft_path, _, heartbeat_path = configure_paths(monkeypatch, tmp_path)
+    persist_schedule_draft(schedule_form_data(), draft_path)
+    finished_snapshot = {
+        "hash": "a" * 64,
+        "timezone": "Europe/Amsterdam",
+        "start_date": (date.today() - timedelta(days=4)).isoformat(),
+        "num_days": 2,
+        "times": ["08:00", "16:00"],
+        "replicates": 3,
+        "replicate_interval_seconds": 15,
+    }
+    write_heartbeat(
+        heartbeat_path,
+        state="waiting_for_schedule",
+        schedule=finished_snapshot,
+    )
+
+    html = schedule_routes.review_schedule(
+        request_for("/schedule/review")
+    ).body.decode()
+
+    assert "Review before activation" in html
+    assert "Changes from active schedule" not in html
+    assert 'class="comparison-card card"' not in html
+
+
 def test_active_schedule_requires_confirmation_before_atomic_promotion(
     tmp_path, monkeypatch
 ):
