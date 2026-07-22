@@ -19,8 +19,9 @@ function renderActivation(data) {
     document.querySelectorAll(".workflow-step")[2].className = "workflow-step workflow-step--complete";
     document.querySelectorAll(".workflow-step")[2].querySelector("span").textContent = "✓";
     document.querySelectorAll(".workflow-step")[2].removeAttribute("aria-current");
-    document.querySelectorAll(".workflow-step")[3].className = "workflow-step workflow-step--current";
-    document.querySelectorAll(".workflow-step")[3].setAttribute("aria-current", "step");
+    document.querySelectorAll(".workflow-step")[3].className = "workflow-step workflow-step--complete";
+    document.querySelectorAll(".workflow-step")[3].querySelector("span").textContent = "✓";
+    document.querySelectorAll(".workflow-step")[3].removeAttribute("aria-current");
     document.getElementById("activation-actions").hidden = false;
     document.getElementById("create-another-schedule").hidden = false;
     window.clearInterval(activationTimer);

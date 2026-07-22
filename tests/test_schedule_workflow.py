@@ -221,6 +221,29 @@ def test_activation_page_waits_for_scheduler_hash(tmp_path, monkeypatch):
     assert "schedule_activation.js?v=" in html
 
 
+def test_confirmed_activation_marks_every_workflow_step_complete(
+    tmp_path, monkeypatch
+):
+    draft_path, _, heartbeat_path = configure_paths(monkeypatch, tmp_path)
+    draft = persist_schedule_draft(schedule_form_data(), draft_path)
+    write_heartbeat(
+        heartbeat_path,
+        state="running",
+        schedule={
+            "hash": draft.schedule_hash,
+            "timezone": "Europe/Amsterdam",
+            **draft.schedule,
+        },
+    )
+
+    html = schedule_routes.schedule_activation(
+        request_for("/schedule/activation"), draft.schedule_hash
+    ).body.decode()
+
+    assert html.count("workflow-step--complete") == 4
+    assert "workflow-step--current" not in html
+
+
 def test_activation_client_polls_until_confirmation_or_timeout():
     contents = (APP_DIR / "static" / "schedule_activation.js").read_text()
 
@@ -228,3 +251,4 @@ def test_activation_client_polls_until_confirmation_or_timeout():
     assert "2000" in contents
     assert "90000" in contents
     assert "expectedScheduleHash" in contents
+    assert 'workflow-step")[3].className = "workflow-step workflow-step--complete"' in contents

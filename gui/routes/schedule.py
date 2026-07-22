@@ -159,7 +159,7 @@ def schedule_activation(
         {
             "request": request,
             "active_tab": "schedule",
-            "current_step": 4 if confirmed else 3,
+            "current_step": 5 if confirmed else 3,
             "expected_hash": schedule_hash,
             "scheduler_status": status,
             "confirmed": confirmed,
