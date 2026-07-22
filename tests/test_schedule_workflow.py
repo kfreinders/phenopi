@@ -42,7 +42,14 @@ def schedule_form_data() -> ScheduleFormData:
     )
 
 
-def write_heartbeat(path, *, age_seconds=0, state="waiting_for_schedule", schedule=None):
+def write_heartbeat(
+    path,
+    *,
+    age_seconds=0,
+    state="waiting_for_schedule",
+    schedule=None,
+    storage=None,
+):
     timestamp = datetime.now(timezone.utc).timestamp() - age_seconds
     path.write_text(
         json.dumps(
@@ -55,7 +62,7 @@ def write_heartbeat(path, *, age_seconds=0, state="waiting_for_schedule", schedu
                 "message": "test scheduler state",
                 "schedule": schedule,
                 "last_capture": None,
-                "storage": None,
+                "storage": storage,
             }
         )
     )
@@ -126,6 +133,33 @@ def test_activation_is_blocked_while_scheduler_is_stale(
     html = response.body.decode()
 
     assert "Activation is blocked" in html
+    assert draft_path.exists()
+    assert not schedule_path.exists()
+
+
+def test_activation_is_blocked_when_protected_estimate_exceeds_storage(
+    tmp_path, monkeypatch
+):
+    draft_path, schedule_path, heartbeat_path = configure_paths(
+        monkeypatch, tmp_path
+    )
+    draft = persist_schedule_draft(schedule_form_data(), draft_path)
+    write_heartbeat(
+        heartbeat_path,
+        storage={"free_bytes": 100_000_000, "used_percent": 50.0},
+    )
+
+    review = schedule_routes.review_schedule(
+        request_for("/schedule/review")
+    ).body.decode()
+    activation = schedule_routes.activate_schedule(
+        request_for("/schedule/activate"), draft.schedule_hash
+    )
+
+    assert "Not enough storage for this experiment" in review
+    assert "182.4 MB" in review
+    assert "100 MB" in review
+    assert "Activation is blocked" in activation.body.decode()
     assert draft_path.exists()
     assert not schedule_path.exists()
 

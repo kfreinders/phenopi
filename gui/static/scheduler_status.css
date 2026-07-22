@@ -5,6 +5,7 @@
 .eyebrow { color: var(--blue); font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .health-alert { padding: .8rem 1rem; border: 1px solid #fecdca; border-radius: .8rem; color: var(--red); background: #fef3f2; font-weight: 650; }
 .schedule-warning { padding: .9rem 1rem; border: 1px solid #fedf89; border-radius: .8rem; color: #93370d; background: #fffaeb; font-weight: 650; }
+.storage-risk { padding: .9rem 1rem; border: 1px solid #fecdca; border-radius: .8rem; color: #b42318; background: #fef3f2; font-weight: 650; }
 .schedule-action { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; margin: 0; border-color: #abefc6; background: linear-gradient(135deg, #f6fef9, #ecfdf3); }
 .schedule-action h3 { margin: .3rem 0 .15rem; color: #05603a; }
 .schedule-action p { margin: 0; color: #475467; }

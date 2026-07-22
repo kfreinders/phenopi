@@ -59,6 +59,20 @@
 </section>
 {% endif %}
 
+<section class="storage-preflight storage-preflight--{{ storage_assessment.status }}"{% if storage_assessment.status == 'insufficient' %} role="alert"{% else %} role="status"{% endif %}>
+  {% if storage_assessment.status == 'insufficient' %}
+    <h3>Not enough storage for this experiment</h3>
+    <p>The protected estimate is <strong>{{ storage_assessment.required_label }}</strong>, but only <strong>{{ storage_assessment.free_label }}</strong> is currently free. Reduce the schedule or free storage before activation.</p>
+  {% elif storage_assessment.status == 'unverified' %}
+    <h3>Storage could not be verified</h3>
+    <p>This experiment is estimated to need <strong>{{ storage_assessment.required_label }}</strong>. Activation remains available, but free space could not be confirmed.</p>
+  {% else %}
+    <h3>Storage available</h3>
+    <p>This experiment is estimated to need <strong>{{ storage_assessment.required_label }}</strong>; <strong>{{ storage_assessment.free_label }}</strong> is currently free.</p>
+  {% endif %}
+  <small>Estimate: {{ storage_assessment.raw_label }} for 7.6 MB captures, plus an equal reserve for measurements and secondary data.</small>
+</section>
+
 {% include "schedule_preview.html" %}
 
 <section class="review-actions card">
@@ -68,8 +82,10 @@
       <p>This draft matches the schedule already loaded by the scheduler.</p>
     {% elif can_activate %}
       <p>The scheduler is responding. Activation will update its configured schedule and then wait for confirmation.</p>
-    {% else %}
+    {% elif not scheduler_responding %}
       <p class="blocked-copy">The scheduler is not responding. Activation is blocked until it can confirm the new schedule.</p>
+    {% else %}
+      <p class="blocked-copy">Activation is blocked until enough capture storage is available.</p>
     {% endif %}
   </div>
   <div class="review-action-buttons">

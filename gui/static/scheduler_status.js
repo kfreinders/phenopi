@@ -43,6 +43,7 @@ function renderSchedule(data) {
   byId("schedule-empty").hidden = Boolean(schedule);
   byId("schedule-dashboard").hidden = !schedule;
   renderScheduleAction(schedule, data.capture_summary);
+  renderStorageRisk(schedule, data.storage);
   if (!schedule) return;
 
   const lifecycle = byId("schedule-lifecycle");
@@ -125,6 +126,16 @@ function renderSchedule(data) {
   byId("daily-summary").textContent = `${schedule.daily_time_points} time points and ${schedule.daily_captures} planned captures per day.`;
   byId("replicate-summary").textContent = `${schedule.replicates} capture${schedule.replicates === 1 ? "" : "s"} per time point, spaced ${schedule.replicate_interval_seconds} seconds apart.`;
   byId("replicate-burst").replaceChildren(...schedule.replicate_offsets.map((replicate) => { const item = document.createElement("div"); const dot = document.createElement("strong"); dot.textContent = replicate.number; const offset = document.createElement("span"); offset.textContent = `+${replicate.offset_seconds}s`; item.append(dot, offset); return item; }));
+}
+
+function renderStorageRisk(schedule, storage) {
+  const warning = byId("storage-risk");
+  const required = schedule?.estimated_remaining_storage_bytes;
+  const atRisk = storage && required > storage.free_bytes;
+  warning.hidden = !atRisk;
+  warning.textContent = atRisk
+    ? `Storage risk: the remaining captures and reserved secondary data are estimated to need ${formatBytes(required)}, but only ${formatBytes(storage.free_bytes)} is free.`
+    : "";
 }
 
 function renderCaptureResults(summary, recent) {

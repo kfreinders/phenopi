@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from scripts.scheduling.heartbeat import HEARTBEAT_STATES
 from scripts.scheduling.scheduler import expand_schedule
 from scripts.scheduling.run_store import validate_run_metadata
+from gui.services.storage_estimate import estimate_storage_bytes
 
 
 STALE_AFTER = timedelta(seconds=30)
@@ -100,6 +101,9 @@ def build_schedule_overview(
         "total_captures": total,
         "elapsed_captures": len(elapsed),
         "remaining_captures": len(remaining),
+        "estimated_remaining_storage_bytes": estimate_storage_bytes(
+            len(remaining)
+        ),
         "progress_percent": progress,
         "first_capture_at": _iso_or_none(run_times[0] if run_times else None),
         "next_capture_at": _iso_or_none(remaining[0] if remaining else None),

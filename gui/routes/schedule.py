@@ -22,6 +22,7 @@ from gui.services.schedule_preview import (
     persist_schedule_draft,
 )
 from gui.services.scheduler_status import read_scheduler_status
+from gui.services.storage_estimate import assess_schedule_storage
 
 
 router = APIRouter()
@@ -113,6 +114,12 @@ def activate_schedule(
             "it can confirm the new schedule."
         )
         return templates.TemplateResponse(request, "schedule_review.html", context)
+    if context["storage_assessment"]["status"] == "insufficient":
+        context["error"] = (
+            "Activation is blocked because the estimated experiment data "
+            "exceeds the available capture storage."
+        )
+        return templates.TemplateResponse(request, "schedule_review.html", context)
 
     active_schedule = status.get("schedule")
     if active_schedule and active_schedule.get("hash") == draft.schedule_hash:
@@ -194,6 +201,11 @@ def _review_context(draft, preview, status: dict) -> dict:
         and active_schedule.get("lifecycle") in {"upcoming", "active"}
         else None
     )
+    storage_assessment = assess_schedule_storage(
+        preview.total_captures,
+        status.get("storage"),
+    )
+    scheduler_responding = status["status"] not in {"stale", "unavailable"}
     return {
         "active_tab": "schedule",
         "current_step": 2,
@@ -201,7 +213,10 @@ def _review_context(draft, preview, status: dict) -> dict:
         "preview": preview,
         "comparison": compare_schedules(preview, comparable_schedule),
         "scheduler_status": status,
-        "can_activate": status["status"] not in {"stale", "unavailable"},
+        "storage_assessment": storage_assessment,
+        "scheduler_responding": scheduler_responding,
+        "can_activate": scheduler_responding
+        and storage_assessment["status"] != "insufficient",
         "already_active": bool(
             comparable_schedule
             and comparable_schedule.get("hash") == draft.schedule_hash

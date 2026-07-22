@@ -92,6 +92,12 @@
 .activation-confirmation p { margin: .4rem 0 1rem; }
 .confirmation-check { flex-direction: row; align-items: flex-start; padding: .8rem; border-radius: .7rem; background: rgb(255 255 255 / 65%); }
 .danger-button { background: var(--red); }
+.storage-preflight { margin: 1.25rem 0; padding: 1rem 1.15rem; border: 1px solid #abefc6; border-radius: .85rem; color: #05603a; background: #ecfdf3; }
+.storage-preflight h3, .storage-preflight p { margin: 0; }
+.storage-preflight p { margin-top: .3rem; }
+.storage-preflight small { display: block; margin-top: .55rem; color: #475467; }
+.storage-preflight--unverified { color: #175cd3; border-color: #b2ccff; background: #eff8ff; }
+.storage-preflight--insufficient { color: #b42318; border-color: #fecdca; background: #fef3f2; }
 
 .review-actions { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; margin-top: 1.25rem; }
 .review-actions p { margin: .3rem 0 0; }

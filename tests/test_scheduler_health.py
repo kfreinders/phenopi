@@ -239,6 +239,9 @@ def test_schedule_overview_lifecycle(now, lifecycle, elapsed, remaining):
     assert overview["elapsed_captures"] == elapsed
     assert overview["remaining_captures"] == remaining
     assert overview["total_captures"] == 8
+    assert overview["estimated_remaining_storage_bytes"] == (
+        remaining * 7_600_000 * 2
+    )
 
 
 def test_schedule_overview_exposes_valid_run_identity():
@@ -399,6 +402,8 @@ def test_scheduler_dashboard_has_accessible_storage_meter():
     assert 'storageMeter.setAttribute("aria-valuenow"' in dashboard_script
     assert "storage-meter--warning" in dashboard_script
     assert "storage-meter--critical" in dashboard_script
+    assert 'id="storage-risk"' in scheduler_source
+    assert "function renderStorageRisk" in dashboard_script
 
 
 def test_page_assets_are_isolated_and_cache_busted():
