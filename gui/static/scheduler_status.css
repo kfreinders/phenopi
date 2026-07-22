@@ -38,6 +38,10 @@
 .metric-state--succeeded { border-color: #abefc6 !important; background: #ecfdf3 !important; }
 .metric-state--failed, .metric-state--missed, .metric-state--critical { border-color: #fecdca !important; background: #fef3f2 !important; }
 .metric-state--warning { border-color: #fedf89 !important; background: #fffaeb !important; }
+.storage-meter { height: .5rem; margin-top: .65rem; overflow: hidden; border-radius: 999px; background: #e4e7ec; }
+.storage-meter-fill { display: block; width: 0; height: 100%; border-radius: inherit; background: #12b76a; transition: width 350ms ease; }
+.storage-meter--warning .storage-meter-fill { background: #f79009; }
+.storage-meter--critical .storage-meter-fill { background: #d92d20; }
 .capture-results { margin: 0; }
 .capture-result-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .65rem; margin-top: 1rem; }
 .capture-result { padding: .8rem; border: 1px solid var(--line); border-radius: .75rem; background: #f9fafb; }

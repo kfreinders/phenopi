@@ -51,7 +51,12 @@
       <article><span>Next capture</span><strong id="metric-next">—</strong><small id="metric-next-relative"></small></article>
       <article><span>Final capture</span><strong id="metric-final">—</strong></article>
       <article id="last-capture-card"><span>Latest actual capture</span><strong id="metric-last-capture">—</strong><small id="metric-last-capture-time"></small></article>
-      <article id="storage-card"><span>Capture storage</span><strong id="metric-storage">—</strong><small id="metric-storage-used"></small></article>
+      <article id="storage-card">
+        <span>Capture storage</span><strong id="metric-storage">—</strong><small id="metric-storage-used"></small>
+        <div id="storage-meter" class="storage-meter" role="progressbar" aria-label="Capture storage used" aria-valuemin="0" aria-valuemax="100" hidden>
+          <i id="storage-meter-fill" class="storage-meter-fill"></i>
+        </div>
+      </article>
     </section>
 
     <section id="capture-results" class="card capture-results" hidden>

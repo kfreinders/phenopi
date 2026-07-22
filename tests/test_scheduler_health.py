@@ -387,6 +387,20 @@ def test_scheduler_dashboard_assets_are_cache_busted():
     assert static_version("scheduler_health.js") > 0
 
 
+def test_scheduler_dashboard_has_accessible_storage_meter():
+    scheduler_source, _, _ = templates.env.loader.get_source(
+        templates.env, "scheduler.html"
+    )
+    dashboard_script = (APP_DIR / "static" / "scheduler_status.js").read_text()
+
+    assert 'id="storage-meter"' in scheduler_source
+    assert 'role="progressbar"' in scheduler_source
+    assert 'aria-label="Capture storage used"' in scheduler_source
+    assert 'storageMeter.setAttribute("aria-valuenow"' in dashboard_script
+    assert "storage-meter--warning" in dashboard_script
+    assert "storage-meter--critical" in dashboard_script
+
+
 def test_page_assets_are_isolated_and_cache_busted():
     base_source, _, _ = templates.env.loader.get_source(
         templates.env, "base.html"

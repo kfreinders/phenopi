@@ -76,10 +76,22 @@ function renderSchedule(data) {
 
   const storage = data.storage;
   const storageCard = byId("storage-card");
-  const freePercent = storage ? 100 - storage.used_percent : null;
-  storageCard.className = freePercent !== null && freePercent < 5 ? "metric-state metric-state--critical" : (freePercent !== null && freePercent < 10 ? "metric-state metric-state--warning" : "");
+  storageCard.className = storage?.used_percent >= 95 ? "metric-state metric-state--critical" : (storage?.used_percent >= 90 ? "metric-state metric-state--warning" : "");
   byId("metric-storage").textContent = storage ? `${formatBytes(storage.free_bytes)} free` : "Unavailable";
   byId("metric-storage-used").textContent = storage ? `${storage.used_percent.toFixed(1)}% used` : "Storage telemetry unavailable";
+  const storageMeter = byId("storage-meter");
+  storageMeter.hidden = !storage;
+  if (storage) {
+    const usedPercent = Math.min(100, Math.max(0, storage.used_percent));
+    storageMeter.className = `storage-meter${usedPercent >= 95 ? " storage-meter--critical" : (usedPercent >= 90 ? " storage-meter--warning" : "")}`;
+    storageMeter.setAttribute("aria-valuenow", usedPercent.toFixed(1));
+    storageMeter.setAttribute("aria-valuetext", `${usedPercent.toFixed(1)}% used`);
+    byId("storage-meter-fill").style.width = `${usedPercent}%`;
+  } else {
+    storageMeter.removeAttribute("aria-valuenow");
+    storageMeter.removeAttribute("aria-valuetext");
+    byId("storage-meter-fill").style.width = "0%";
+  }
 
   const dayStrip = byId("day-strip");
   dayStrip.replaceChildren(...schedule.days.map((day) => {
