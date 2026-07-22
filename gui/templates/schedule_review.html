@@ -77,15 +77,13 @@
 
 <section class="review-actions card">
   <div>
-    <h3>Ready to activate?</h3>
+    <h3>Activate schedule</h3>
     {% if already_active %}
-      <p>This draft matches the schedule already loaded by the scheduler.</p>
-    {% elif can_activate %}
-      <p>The scheduler is responding. Activation will update its configured schedule and then wait for confirmation.</p>
+      <p>This schedule is already active.</p>
     {% elif not scheduler_responding %}
-      <p class="blocked-copy">The scheduler is not responding. Activation is blocked until it can confirm the new schedule.</p>
-    {% else %}
-      <p class="blocked-copy">Activation is blocked until enough capture storage is available.</p>
+      <p class="blocked-copy">Scheduler unavailable. Activation is paused.</p>
+    {% elif not can_activate %}
+      <p class="blocked-copy">Free storage before activating.</p>
     {% endif %}
   </div>
   <div class="review-action-buttons">

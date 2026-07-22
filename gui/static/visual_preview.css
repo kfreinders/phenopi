@@ -99,15 +99,17 @@
 .storage-preflight--unverified { color: #175cd3; border-color: #b2ccff; background: #eff8ff; }
 .storage-preflight--insufficient { color: #b42318; border-color: #fecdca; background: #fef3f2; }
 
-.review-actions { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; margin-top: 1.25rem; }
+.review-actions { display: flex; align-items: center; justify-content: space-between; gap: 1.25rem; margin-top: 1.25rem; }
 .review-actions p { margin: .3rem 0 0; }
-.review-action-buttons { display: flex; align-items: center; justify-content: flex-end; gap: .7rem; flex-wrap: wrap; }
+.review-action-buttons { display: flex; align-items: stretch; justify-content: flex-end; gap: .65rem; flex-wrap: nowrap; }
 .activation-redirect { color: #067647 !important; font-weight: 650; }
 .activation-redirect strong { display: inline-block; min-width: 1ch; }
 .review-action-buttons form { margin: 0; }
 .button-link { display: inline-flex; align-items: center; justify-content: center; padding: .8rem 1rem; border: 1px solid var(--blue); border-radius: .65rem; color: white; background: var(--blue); text-decoration: none; font-weight: 750; }
 .button-link.secondary { color: var(--blue-dark); border-color: #b9d5ee; background: var(--surface-soft); }
 .text-button { color: var(--red); background: transparent; }
+.review-action-buttons .text-button { border: 1px solid #fecdca; background: #fff; }
+.review-action-buttons button, .review-action-buttons .button-link { min-height: 2.85rem; white-space: nowrap; }
 .blocked-copy { color: var(--red) !important; }
 button:disabled { cursor: not-allowed; opacity: .5; }
 
@@ -292,7 +294,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 
   .workflow-step { font-size: .78rem; }
   .review-actions { align-items: flex-start; flex-direction: column; }
-  .review-action-buttons { justify-content: flex-start; }
+  .review-action-buttons { justify-content: flex-start; flex-wrap: wrap; }
 }
 
 @media (max-width: 560px) {
