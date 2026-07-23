@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/analysis", tags=["analysis"])
 class AnalysisPreviewRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    image_data: str = Field(min_length=1, max_length=11_500_000)
+    image_data: str = Field(min_length=1, max_length=13_500_000)
     config: dict = Field(default_factory=dict)
 
 

@@ -52,8 +52,8 @@ export function AnalysisSetupPage() {
       setError(new Error("Choose a JPEG or PNG calibration image."));
       return;
     }
-    if (file.size > 8_500_000) {
-      setError(new Error("The calibration image must be smaller than 8.5 MB."));
+    if (file.size > 10_000_000) {
+      setError(new Error("The calibration image must be 10 MB or smaller."));
       return;
     }
     const reader = new FileReader();

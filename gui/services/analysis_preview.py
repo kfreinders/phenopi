@@ -13,7 +13,7 @@ from scripts.analysis.preview import (
 from scripts.analysis.roi import detect_roi_definition
 
 
-MAX_CALIBRATION_IMAGE_BYTES = 8_500_000
+MAX_CALIBRATION_IMAGE_BYTES = 10_000_000
 
 
 def build_analysis_preview(image_data: str, config_data: dict) -> dict:
@@ -58,7 +58,7 @@ def _decode_image_data(value: str) -> bytes:
     if not decoded:
         raise ValueError("The calibration image is empty.")
     if len(decoded) > MAX_CALIBRATION_IMAGE_BYTES:
-        raise ValueError("The calibration image must be smaller than 8.5 MB.")
+        raise ValueError("The calibration image must be 10 MB or smaller.")
     return decoded
 
 
