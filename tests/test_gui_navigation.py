@@ -61,6 +61,13 @@ def test_spa_fallback_and_all_user_routes_are_registered_in_react():
         assert route in source
 
 
+def test_activation_page_rejects_a_malformed_schedule_hash():
+    source = (FRONTEND / "pages" / "ActivationPage.jsx").read_text()
+
+    assert "/^[0-9a-f]{64}$/" in source
+    assert "Invalid activation link" in source
+
+
 def test_scheduler_api_reports_ready_invalid_and_missing_drafts(
     tmp_path, monkeypatch
 ):

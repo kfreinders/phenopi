@@ -6,12 +6,17 @@ function usePolling(loader, interval) {
   const [error, setError] = useState(null);
   useEffect(() => {
     let active = true;
+    let inFlight = false;
     const refresh = async () => {
+      if (inFlight) return;
+      inFlight = true;
       try {
         const value = await loader();
         if (active) { setData(value); setError(null); }
       } catch (reason) {
         if (active) setError(reason);
+      } finally {
+        inFlight = false;
       }
     };
     refresh();
@@ -23,4 +28,3 @@ function usePolling(loader, interval) {
 
 export const useSchedulerStatus = (interval = 5000) => usePolling(getSchedulerStatus, interval);
 export const useSchedulerHealth = (interval = 5000) => usePolling(getSchedulerHealth, interval);
-

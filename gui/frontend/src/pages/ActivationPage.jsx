@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { WorkflowSteps } from "../components";
 import { useSchedulerStatus } from "../hooks";
 
 export function ActivationPage() {
   const [params] = useSearchParams(); const expected = params.get("schedule_hash"); const navigate = useNavigate(); const { data, error } = useSchedulerStatus(2000); const [started] = useState(Date.now()); const [countdown, setCountdown] = useState(null);
+  const validHash = /^[0-9a-f]{64}$/.test(expected ?? "");
   const confirmed = Boolean(expected && data?.schedule?.hash === expected);
   useEffect(() => { if (!confirmed) return; setCountdown(5); const timer = window.setInterval(() => setCountdown(value => { if (value <= 1) { window.clearInterval(timer); navigate("/scheduler"); return 0; } return value - 1; }), 1000); return () => window.clearInterval(timer); }, [confirmed, navigate]);
+  if (!validHash) return <><WorkflowSteps current={3} /><section className="activation-status card"><span className="eyebrow">Safe activation</span><div className="activation-icon activation-icon--rejected">!</div><h2>Invalid activation link</h2><p>This link does not identify a schedule that can be confirmed.</p><Link className="button-link secondary" to="/schedule">Return to schedule builder</Link></section></>;
   let kind = "waiting", title = "Waiting for scheduler confirmation", message = "The schedule was activated safely. Phenopi is waiting for the scheduler to load it.";
   if (confirmed) { kind = "confirmed"; title = "Schedule confirmed"; message = "The scheduler has loaded the schedule and is ready."; }
   else if (data?.status === "invalid_schedule" && Date.now() - started >= 35000) { kind = "rejected"; title = "Scheduler rejected the schedule"; message = data.message; }
