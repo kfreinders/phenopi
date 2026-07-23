@@ -10,6 +10,7 @@ from scripts.analysis.roi import (
     RoiCircle,
     RoiDefinition,
     detect_roi_definition,
+    remove_square_calibration_components,
 )
 
 
@@ -92,3 +93,16 @@ def test_roi_definition_rejects_incomplete_grid():
             config_fingerprint=config.fingerprint,
             circles=(RoiCircle(0, 0, 0.5, 0.5, 0.2),),
         )
+
+
+def test_colorchecker_square_is_removed_only_from_calibration_mask():
+    mask = np.zeros((300, 500), dtype=np.uint8)
+    cv2.ellipse(mask, (100, 150), (35, 20), 20, 0, 360, 255, -1)
+    cv2.rectangle(mask, (400, 120), (440, 160), 255, -1)
+    original = mask.copy()
+
+    filtered = remove_square_calibration_components(mask)
+
+    assert filtered[150, 100] == 255
+    assert filtered[140, 420] == 0
+    np.testing.assert_array_equal(mask, original)

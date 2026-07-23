@@ -180,8 +180,9 @@ def detect_roi_definition(
     """Use PlantCV once to locate the ROI grid in a calibration image."""
     from plantcv import plantcv as pcv  # type: ignore[import-not-found]
 
+    calibration_mask = remove_square_calibration_components(mask)
     objects = pcv.roi.auto_grid(
-        mask=mask,
+        mask=calibration_mask,
         nrows=config.roi_rows,
         ncols=config.roi_cols,
         img=image,
@@ -229,3 +230,33 @@ def detect_roi_definition(
         config_fingerprint=config.fingerprint,
         circles=circles,
     )
+
+
+def remove_square_calibration_components(mask: np.ndarray) -> np.ndarray:
+    """Exclude ColorChecker-like squares from the ROI detection mask."""
+    binary = (mask > 0).astype(np.uint8)
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(
+        binary, connectivity=8
+    )
+    cleaned = binary.copy()
+    image_area = mask.shape[0] * mask.shape[1]
+    minimum_area = max(64, round(image_area * 0.00002))
+    maximum_area = round(image_area * 0.025)
+
+    for label_id in range(1, count):
+        width = stats[label_id, cv2.CC_STAT_WIDTH]
+        height = stats[label_id, cv2.CC_STAT_HEIGHT]
+        area = stats[label_id, cv2.CC_STAT_AREA]
+        if (
+            area < minimum_area
+            or area > maximum_area
+            or width == 0
+            or height == 0
+        ):
+            continue
+        aspect_ratio = width / height
+        rectangularity = area / (width * height)
+        if 0.72 <= aspect_ratio <= 1.38 and rectangularity >= 0.86:
+            cleaned[labels == label_id] = 0
+
+    return (cleaned * 255).astype(mask.dtype)
