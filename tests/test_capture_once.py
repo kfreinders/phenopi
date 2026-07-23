@@ -14,3 +14,12 @@ def test_placeholder_capture_creates_empty_timestamped_image(tmp_path):
     assert output_path == output_dir / "capture_20260722_150409.jpg"
     assert output_path.exists()
     assert output_path.read_bytes() == b""
+
+
+def test_placeholder_capture_can_write_to_a_deterministic_path(tmp_path):
+    output_path = tmp_path / "run" / "capture_20260722_150409.jpg"
+
+    result = write_placeholder_capture(output_path=output_path)
+
+    assert result == output_path
+    assert output_path.is_file()

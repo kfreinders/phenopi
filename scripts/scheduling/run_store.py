@@ -214,6 +214,7 @@ class RunArchive:
         scheduled_at: datetime,
         status: str,
         message: str,
+        image_path: Path | None = None,
     ) -> dict[str, Any]:
         if status not in {"succeeded", "failed", "missed"}:
             raise ValueError("Unsupported capture result status.")
@@ -227,6 +228,15 @@ class RunArchive:
             "status": status,
             "message": message,
         }
+        if image_path is not None:
+            try:
+                event["image_path"] = str(
+                    image_path.resolve().relative_to(self.directory.resolve())
+                )
+            except ValueError as exc:
+                raise ValueError(
+                    "Capture image must be inside the run directory."
+                ) from exc
         line = json.dumps(event, separators=(",", ":")) + "\n"
         with self._lock:
             self.directory.mkdir(parents=True, exist_ok=True)
@@ -235,6 +245,12 @@ class RunArchive:
                 output.flush()
                 os.fsync(output.fileno())
         return event
+
+    def capture_path(self, scheduled_at: datetime) -> Path:
+        """Return the deterministic image path for one scheduled capture."""
+        return self.directory / (
+            f"capture_{scheduled_at.strftime('%Y%m%d_%H%M%S')}.jpg"
+        )
 
     def events(self) -> list[dict[str, Any]]:
         try:

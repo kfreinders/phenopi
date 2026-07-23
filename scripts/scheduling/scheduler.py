@@ -114,6 +114,7 @@ def build_schedule_snapshot(
 def run_capture(
     config: SchedulerConfig,
     output_dir: Path | None = None,
+    output_path: Path | None = None,
 ) -> None:
     """
     Execute the capture script as a subprocess.
@@ -133,15 +134,14 @@ def run_capture(
     subprocess.CalledProcessError
         If the capture script exits with a non-zero return code.
     """
-    subprocess.run(
-        [
-            str(config.python_bin),
-            str(config.capture_script),
-            "--output-dir",
-            str(output_dir or config.output_dir),
-        ],
-        check=True,
-    )
+    command = [str(config.python_bin), str(config.capture_script)]
+    if output_path is not None:
+        command.extend(["--output-path", str(output_path)])
+    else:
+        command.extend(
+            ["--output-dir", str(output_dir or config.output_dir)]
+        )
+    subprocess.run(command, check=True)
 
 
 def record_capture_event(
@@ -170,10 +170,20 @@ def record_capture_event(
             "message": message,
         }
     if run_archive is not None:
+        image_path = (
+            run_archive.capture_path(event.scheduled_run_time)
+            if status == "succeeded"
+            else None
+        )
+        if image_path is not None and not image_path.is_file():
+            status = "failed"
+            message = "Capture command completed without writing an image."
+            image_path = None
         result = run_archive.record(
             scheduled_at=event.scheduled_run_time,
             status=status,
             message=message,
+            image_path=image_path,
         )
     heartbeat.record_capture(result)
 
@@ -542,7 +552,15 @@ def run_scheduler_until_reload(
             run_capture,
             trigger="date",
             run_date=run_time,
-            args=[config, run_archive.directory if run_archive else None],
+            args=[
+                config,
+                run_archive.directory if run_archive else None,
+                (
+                    run_archive.capture_path(run_time)
+                    if run_archive is not None
+                    else None
+                ),
+            ],
             id=f"capture_{run_time.isoformat()}",
             misfire_grace_time=int(config.misfire_grace.total_seconds()),
             max_instances=1,

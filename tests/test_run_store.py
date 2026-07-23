@@ -106,6 +106,33 @@ def test_capture_ledger_reconstructs_latest_results_and_summary(tmp_path):
     assert payload["last"]["status"] == "succeeded"
 
 
+def test_capture_ledger_records_a_portable_image_path(tmp_path):
+    archive = RunArchive(tmp_path, schedule(), "a" * 64, [NOW])
+    image_path = archive.capture_path(NOW)
+    image_path.touch()
+
+    event = archive.record(
+        scheduled_at=NOW,
+        status="succeeded",
+        message="ok",
+        image_path=image_path,
+    )
+
+    assert event["image_path"] == "capture_20260722_120000.jpg"
+
+
+def test_capture_ledger_rejects_images_outside_the_run(tmp_path):
+    archive = RunArchive(tmp_path, schedule(), "a" * 64, [NOW])
+
+    with pytest.raises(ValueError, match="inside the run directory"):
+        archive.record(
+            scheduled_at=NOW,
+            status="succeeded",
+            message="ok",
+            image_path=tmp_path / "other.jpg",
+        )
+
+
 def test_run_archive_records_unreported_past_captures_as_missed(tmp_path):
     past = NOW - timedelta(hours=1)
     future = NOW + timedelta(hours=1)
