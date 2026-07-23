@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 
 from .config import AnalysisConfig
+from .roi import AnalysisCrop
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,7 @@ def generate_analysis_preview(
     config: AnalysisConfig,
     *,
     max_dimension: int = 960,
+    analysis_crop: AnalysisCrop | None = None,
 ) -> AnalysisPreview:
     """Generate display-sized segmentation stages without measuring traits."""
     prepared = prepare_analysis_image(image_bytes, config)
@@ -64,14 +66,18 @@ def generate_analysis_preview(
     overlay[selected] = (
         overlay[selected].astype(np.float32) * 0.45 + green * 0.55
     ).astype(np.uint8)
+    crop = analysis_crop or AnalysisCrop()
+    x0, y0, x1, y1 = crop.pixel_bounds(rotated.shape)
 
     return AnalysisPreview(
         original=fit_for_display(rotated, max_dimension),
-        channel=fit_for_display(channel, max_dimension),
+        channel=fit_for_display(channel[y0:y1, x0:x1], max_dimension),
         mask=fit_for_display(
-            mask, max_dimension, interpolation=cv2.INTER_NEAREST
+            mask[y0:y1, x0:x1],
+            max_dimension,
+            interpolation=cv2.INTER_NEAREST,
         ),
-        overlay=fit_for_display(overlay, max_dimension),
+        overlay=fit_for_display(overlay[y0:y1, x0:x1], max_dimension),
     )
 
 

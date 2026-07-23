@@ -55,13 +55,13 @@
 .analysis-control select { padding: .65rem .7rem; border: 1px solid var(--line); border-radius: .55rem; background: #fff; color: var(--text); }
 .analysis-preview-area { min-width: 0; transition: opacity 140ms ease; }
 .analysis-preview-area.is-updating { opacity: .82; }
-.analysis-stage-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.analysis-stage-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
 .analysis-stage { overflow: hidden; padding: 0; }
 .analysis-stage header { min-height: 4.4rem; padding: .9rem 1rem; display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
 .analysis-stage h3, .analysis-stage p, .analysis-empty h3, .analysis-empty p { margin: 0; }
 .analysis-stage p { margin-top: .2rem; font-size: .8rem; }
-.analysis-stage-image { aspect-ratio: 16 / 10; background: #e9edf1; display: grid; place-items: center; overflow: hidden; }
-.analysis-stage-image img { width: 100%; height: 100%; object-fit: contain; }
+.analysis-stage-image { background: #e9edf1; display: grid; place-items: center; overflow: hidden; }
+.analysis-stage-image img { display: block; width: 100%; height: auto; object-fit: contain; }
 .analysis-updating { color: var(--blue); font-size: .76rem; font-weight: 700; }
 .analysis-empty { min-height: 31rem; display: grid; place-content: center; justify-items: center; text-align: center; padding: 2rem; }
 .analysis-empty > span { font-size: 2rem; color: var(--muted); margin-bottom: .8rem; }
@@ -72,7 +72,6 @@
 .analysis-detect-button { width: 100%; margin-top: .9rem; }
 .analysis-roi-note { margin: .7rem 0 0; color: var(--muted); font-size: .78rem; line-height: 1.45; }
 .analysis-stage--roi { grid-column: 1 / -1; }
-.analysis-stage--roi .analysis-stage-image { aspect-ratio: 16 / 7; }
 .analysis-roi-ready { padding: .3rem .55rem; border-radius: 999px; color: #067647; background: #dcfae6; font-size: .74rem; font-weight: 750; }
 .analysis-stage--crop { grid-column: 1 / -1; }
 .analysis-crop-reset { padding: .45rem .65rem; }

@@ -7,6 +7,7 @@ import pytest
 from gui.services.analysis_preview import build_analysis_preview
 from scripts.analysis.config import AnalysisConfig
 from scripts.analysis.preview import generate_analysis_preview
+from scripts.analysis.roi import AnalysisCrop
 
 
 def encoded_test_image() -> bytes:
@@ -29,6 +30,20 @@ def test_preview_generates_display_stages_without_trait_analysis():
     assert preview.mask.shape == (40, 60)
     assert preview.overlay.shape == (40, 60, 3)
     assert set(np.unique(preview.mask)).issubset({0, 255})
+
+
+def test_processing_previews_use_crop_while_input_remains_complete():
+    preview = generate_analysis_preview(
+        encoded_test_image(),
+        AnalysisConfig(fill_size=10),
+        max_dimension=120,
+        analysis_crop=AnalysisCrop(x=0.25, y=0, width=0.5, height=1),
+    )
+
+    assert preview.original.shape == (80, 120, 3)
+    assert preview.channel.shape == (80, 60)
+    assert preview.mask.shape == (80, 60)
+    assert preview.overlay.shape == (80, 60, 3)
 
 
 def test_preview_service_returns_browser_safe_images_and_config_identity():

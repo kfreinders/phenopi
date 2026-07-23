@@ -34,7 +34,7 @@ export function AnalysisSetupPage() {
       setLoading(true);
       setError(null);
       try {
-        const result = await previewAnalysis(imageData, config, controller.signal);
+        const result = await previewAnalysis(imageData, config, analysisCrop, controller.signal);
         if (currentRequest === requestNumber.current) setStages(result.stages);
       } catch (reason) {
         if (reason.name !== "AbortError" && currentRequest === requestNumber.current) setError(reason);
@@ -43,7 +43,7 @@ export function AnalysisSetupPage() {
       }
     }, 350);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [imageData, config]);
+  }, [imageData, config, analysisCrop]);
 
   const selectImage = event => {
     const file = event.target.files?.[0];

@@ -12,13 +12,6 @@ from gui.services.analysis_preview import (
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
 
 
-class AnalysisPreviewRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    image_data: str = Field(min_length=1, max_length=13_500_000)
-    config: dict = Field(default_factory=dict)
-
-
 class AnalysisCropRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -32,6 +25,14 @@ class AnalysisCropRequest(BaseModel):
         if self.x + self.width > 1 or self.y + self.height > 1:
             raise ValueError("Analysis area must fit within the image.")
         return self
+
+
+class AnalysisPreviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    image_data: str = Field(min_length=1, max_length=13_500_000)
+    config: dict = Field(default_factory=dict)
+    analysis_crop: AnalysisCropRequest | None = None
 
 
 class RoiPreviewRequest(AnalysisPreviewRequest):
@@ -48,7 +49,15 @@ def configure_analysis() -> dict:
 @router.post("/preview")
 def preview_analysis(request: AnalysisPreviewRequest) -> dict:
     try:
-        return build_analysis_preview(request.image_data, request.config)
+        return build_analysis_preview(
+            request.image_data,
+            request.config,
+            (
+                request.analysis_crop.model_dump()
+                if request.analysis_crop is not None
+                else None
+            ),
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

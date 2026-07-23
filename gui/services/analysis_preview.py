@@ -16,10 +16,22 @@ from scripts.analysis.roi import AnalysisCrop, detect_roi_definition
 MAX_CALIBRATION_IMAGE_BYTES = 10_000_000
 
 
-def build_analysis_preview(image_data: str, config_data: dict) -> dict:
+def build_analysis_preview(
+    image_data: str,
+    config_data: dict,
+    crop_data: dict | None = None,
+) -> dict:
     image_bytes = _decode_image_data(image_data)
     config = AnalysisConfig.from_dict(config_data)
-    preview = generate_analysis_preview(image_bytes, config)
+    preview = generate_analysis_preview(
+        image_bytes,
+        config,
+        analysis_crop=(
+            AnalysisCrop.from_dict(crop_data)
+            if crop_data is not None
+            else None
+        ),
+    )
     return {
         "config": config.to_dict(),
         "config_fingerprint": config.fingerprint,

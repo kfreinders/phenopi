@@ -26,9 +26,9 @@ export async function api(path, options = {}) {
 export const getSchedulerStatus = () => api("/api/scheduler/status");
 export const getSchedulerHealth = () => api("/api/scheduler/health");
 export const getAnalysisConfig = () => api("/api/analysis/configure");
-export const previewAnalysis = (imageData, config, signal) => api(
+export const previewAnalysis = (imageData, config, analysisCrop, signal) => api(
   "/api/analysis/preview",
-  { method: "POST", body: JSON.stringify({ image_data: imageData, config }), signal },
+  { method: "POST", body: JSON.stringify({ image_data: imageData, config, analysis_crop: analysisCrop }), signal },
 );
 export const detectAnalysisRoi = (imageData, config, analysisCrop) => api(
   "/api/analysis/roi",
