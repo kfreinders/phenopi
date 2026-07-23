@@ -15,6 +15,9 @@ from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.blocking import BlockingScheduler
 
+from scripts.analysis.queue import AnalysisQueue
+from scripts.analysis.worker import ANALYSIS_POLL_SECONDS, poll_analysis_queue
+
 from .config import SchedulerConfig, default_scheduler_config
 from .commands import (
     SCHEDULER_COMMAND_FILENAME,
@@ -146,7 +149,7 @@ def run_capture(
 
 def record_capture_event(
     event,
-    heartbeat: SchedulerHeartbeat,
+    heartbeat: SchedulerHeartbeat | None,
     schedule_hash: str,
     run_archive: RunArchive | None = None,
 ) -> None:
@@ -185,7 +188,8 @@ def record_capture_event(
             message=message,
             image_path=image_path,
         )
-    heartbeat.record_capture(result)
+    if heartbeat is not None:
+        heartbeat.record_capture(result)
 
 
 def make_scheduler(
@@ -473,7 +477,7 @@ def run_scheduler_until_reload(
 
     scheduler = make_scheduler(config, jobstore_path)
 
-    if heartbeat is not None:
+    if heartbeat is not None or run_archive is not None:
         scheduler.add_listener(
             lambda event: record_capture_event(
                 event,
@@ -505,17 +509,59 @@ def run_scheduler_until_reload(
         jobstore="control",
     )
 
+    analysis_state: dict = {}
+    analysis_enabled = run_archive is not None and cfg.analysis is not None
+    if analysis_enabled:
+        analysis_queue = AnalysisQueue(run_archive.analysis_dir)
+        analysis_state.update(
+            analysis_queue.summary(run_archive.events()),
+            state="idle",
+            reason=None,
+            capture_id=None,
+            next_safe_at=None,
+        )
+        scheduler.add_job(
+            poll_analysis_queue,
+            trigger="interval",
+            seconds=ANALYSIS_POLL_SECONDS,
+            args=[config, run_archive, run_times, analysis_state],
+            id="poll_analysis",
+            max_instances=1,
+            coalesce=True,
+            replace_existing=True,
+            jobstore="control",
+        )
+
     if heartbeat is not None:
         if run_archive is not None:
             def capture_status() -> dict:
                 now = datetime.now(tz)
                 payload = run_archive.status_payload(now)
+                if analysis_enabled:
+                    analysis_summary = AnalysisQueue(
+                        run_archive.analysis_dir
+                    ).summary(run_archive.events())
+                    analysis_summary.update(
+                        {
+                            key: value
+                            for key, value in analysis_state.items()
+                            if key not in analysis_summary
+                        }
+                    )
+                    payload["analysis"] = analysis_summary
                 summary = payload["summary"]
                 if (
                     run_times
                     and now > run_times[-1]
                     and summary["remaining"] == 0
                     and summary["elapsed_unreported"] == 0
+                    and (
+                        not analysis_enabled
+                        or (
+                            payload["analysis"]["pending"] == 0
+                            and payload["analysis"]["running"] == 0
+                        )
+                    )
                 ):
                     run_archive.mark_ended("completed")
                 return payload

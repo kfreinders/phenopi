@@ -100,10 +100,12 @@ class SchedulerHeartbeat:
             payload["recent_captures"] = capture_status.get("recent", [])
             payload["last_capture"] = capture_status.get("last")
             payload["daily_capture_progress"] = capture_status.get("daily_progress")
+            payload["analysis_summary"] = capture_status.get("analysis")
         else:
             payload["capture_summary"] = None
             payload["recent_captures"] = []
             payload["daily_capture_progress"] = None
+            payload["analysis_summary"] = None
 
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
