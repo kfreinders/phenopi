@@ -5,8 +5,10 @@ import json
 import os
 from pathlib import Path
 import re
-from threading import Lock
+import sys
+from threading import Lock, Thread
 from typing import Any
+from zipfile import ZIP_DEFLATED, ZipFile
 
 from .make_schedule import atomic_write_text
 from .schedule import RunMetadata, Schedule
@@ -56,7 +58,10 @@ class RunArchive:
         self.directory = output_root / run_directory_name(schedule_data["start_date"], run)
         self.manifest_path = self.directory / "run.json"
         self.events_path = self.directory / "capture-events.jsonl"
+        self.archive_path = self.directory.with_suffix(".zip")
         self._lock = Lock()
+        self._archive_lock = Lock()
+        self._archive_thread: Thread | None = None
         self._initialize(schedule_data)
 
     def _initialize(self, schedule: dict[str, Any]) -> None:
@@ -109,6 +114,8 @@ class RunArchive:
         with self._lock:
             manifest = self._read_manifest()
             if manifest.get("state") in {"completed", "superseded", "cancelled"}:
+                if manifest.get("state") == "completed":
+                    self._start_download_archive()
                 return
             manifest["state"] = state
             manifest["ended_at"] = datetime.now(timezone.utc).isoformat()
@@ -117,6 +124,60 @@ class RunArchive:
                 self.manifest_path,
                 json.dumps(manifest, indent=2) + "\n",
             )
+            if state == "completed":
+                self._start_download_archive()
+
+    def _start_download_archive(self) -> None:
+        if self.archive_path.exists():
+            return
+        with self._archive_lock:
+            if self._archive_thread is not None and self._archive_thread.is_alive():
+                return
+            self._archive_thread = Thread(
+                target=self._create_download_archive_safely,
+                name=f"archive-{self.run['id'][:8]}",
+                daemon=True,
+            )
+            self._archive_thread.start()
+
+    def _create_download_archive_safely(self) -> None:
+        try:
+            self._create_download_archive()
+        except (OSError, ValueError) as exc:
+            print(
+                f"[scheduler] Could not create experiment archive: {exc}",
+                file=sys.stderr,
+            )
+
+    def _create_download_archive(self) -> Path:
+        """Create an atomic, portable ZIP after all run files are final."""
+        if self.archive_path.exists():
+            return self.archive_path
+        temporary_path = self.archive_path.with_name(
+            f".{self.archive_path.name}.{os.getpid()}.tmp"
+        )
+        try:
+            with ZipFile(
+                temporary_path,
+                mode="w",
+                compression=ZIP_DEFLATED,
+                compresslevel=6,
+            ) as archive:
+                for path in sorted(self.directory.rglob("*")):
+                    if path.is_symlink():
+                        raise ValueError(
+                            "The run dataset contains a symbolic link and cannot be archived."
+                        )
+                    if path.is_file():
+                        archive.write(
+                            path,
+                            Path(self.directory.name) / path.relative_to(self.directory),
+                        )
+            temporary_path.replace(self.archive_path)
+        except Exception:
+            temporary_path.unlink(missing_ok=True)
+            raise
+        return self.archive_path
 
     def record(
         self,

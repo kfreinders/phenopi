@@ -22,3 +22,4 @@ SCHEDULER_HEARTBEAT_PATH = (
     PROJECT_ROOT / "runtime" / "scheduler-heartbeat.json"
 )
 SCHEDULER_COMMAND_PATH = PROJECT_ROOT / "runtime" / "scheduler-command.json"
+CAPTURE_OUTPUT_ROOT = PROJECT_ROOT / "captures"

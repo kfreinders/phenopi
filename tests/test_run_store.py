@@ -1,6 +1,7 @@
 import json
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
+from zipfile import ZipFile
 
 import pytest
 
@@ -159,3 +160,22 @@ def test_run_can_be_marked_cancelled(tmp_path):
     assert manifest["state"] == "cancelled"
     assert manifest["ended_at"] is not None
     assert manifest["superseded_by"] is None
+
+
+def test_completed_run_creates_portable_zip_archive(tmp_path):
+    archive = RunArchive(tmp_path, schedule(), "a" * 64, [NOW])
+    capture = archive.directory / "capture_20260722_120000.jpg"
+    capture.write_bytes(b"image")
+
+    archive.mark_ended("completed")
+    archive._archive_thread.join(timeout=5)
+
+    assert archive.archive_path.exists()
+    with ZipFile(archive.archive_path) as downloaded:
+        names = set(downloaded.namelist())
+        assert f"{archive.directory.name}/run.json" in names
+        assert f"{archive.directory.name}/{capture.name}" in names
+        manifest = json.loads(
+            downloaded.read(f"{archive.directory.name}/run.json")
+        )
+    assert manifest["state"] == "completed"

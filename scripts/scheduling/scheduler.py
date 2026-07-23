@@ -496,7 +496,13 @@ def run_scheduler_until_reload(
             def capture_status() -> dict:
                 now = datetime.now(tz)
                 payload = run_archive.status_payload(now)
-                if run_times and now > run_times[-1]:
+                summary = payload["summary"]
+                if (
+                    run_times
+                    and now > run_times[-1]
+                    and summary["remaining"] == 0
+                    and summary["elapsed_unreported"] == 0
+                ):
                     run_archive.mark_ended("completed")
                 return payload
 

@@ -6,6 +6,7 @@ import { ScheduleBuilderPage } from "./pages/ScheduleBuilderPage";
 import { ScheduleReviewPage } from "./pages/ScheduleReviewPage";
 import { ActivationPage } from "./pages/ActivationPage";
 import { CameraPage } from "./pages/CameraPage";
+import { ExperimentDownloadPage } from "./pages/ExperimentDownloadPage";
 
 const healthLabels = {
   healthy: "Healthy", waiting_for_schedule: "Waiting for schedule",
@@ -35,7 +36,7 @@ export default function App() {
     <Route path="schedule/review" element={<ScheduleReviewPage />} />
     <Route path="schedule/activation" element={<ActivationPage />} />
     <Route path="camera" element={<CameraPage />} />
+    <Route path="experiments/:runId" element={<ExperimentDownloadPage />} />
     <Route path="*" element={<Navigate to="/scheduler" replace />} />
   </Route></Routes>;
 }
-

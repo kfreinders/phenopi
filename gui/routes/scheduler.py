@@ -1,12 +1,22 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict
+from uuid import UUID
 
 from gui.config import (
+    CAPTURE_OUTPUT_ROOT,
     SCHEDULE_DRAFT_PATH,
     SCHEDULER_COMMAND_PATH,
     SCHEDULER_HEARTBEAT_PATH,
+)
+from gui.services.experiment_exports import (
+    ExperimentExportError,
+    delete_experiment_data,
+    download_path,
+    export_details,
+    validate_finished_experiment,
 )
 from gui.services.schedule_drafts import load_current_schedule_draft
 from gui.services.scheduler_status import (
@@ -26,6 +36,13 @@ class CancellationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     schedule_hash: str
+
+
+class ExperimentDeletionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schedule_hash: str
+    experiment_name: str
 
 
 def schedule_draft_state() -> str:
@@ -90,3 +107,65 @@ def _cancellation_pending(schedule_hash: str | None) -> bool:
 @router.get("/api/scheduler/health")
 def scheduler_health_api() -> dict:
     return read_scheduler_health(SCHEDULER_HEARTBEAT_PATH)
+
+
+@router.get("/api/experiments/{run_id}")
+def finished_experiment(run_id: UUID) -> dict:
+    schedule = _finished_schedule(run_id)
+    try:
+        details = export_details(CAPTURE_OUTPUT_ROOT, schedule)
+    except ExperimentExportError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    details["capture_summary"] = read_scheduler_status(
+        SCHEDULER_HEARTBEAT_PATH
+    ).get("capture_summary")
+    return details
+
+
+@router.get("/api/experiments/{run_id}/download")
+def download_finished_experiment(run_id: UUID) -> FileResponse:
+    schedule = _finished_schedule(run_id)
+    try:
+        archive = download_path(CAPTURE_OUTPUT_ROOT, schedule)
+    except ExperimentExportError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return FileResponse(
+        archive,
+        media_type="application/zip",
+        filename=archive.name,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.delete("/api/experiments/{run_id}", status_code=204)
+def remove_finished_experiment(
+    run_id: UUID,
+    request: ExperimentDeletionRequest,
+) -> None:
+    schedule = _finished_schedule(run_id)
+    expected_name = schedule["run"]["name"]
+    if (
+        request.schedule_hash != schedule["hash"]
+        or request.experiment_name != expected_name
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="The deletion confirmation does not match this experiment.",
+        )
+    try:
+        delete_experiment_data(CAPTURE_OUTPUT_ROOT, schedule)
+    except ExperimentExportError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="The experiment data could not be deleted.",
+        ) from exc
+
+
+def _finished_schedule(run_id: UUID) -> dict:
+    status = read_scheduler_status(SCHEDULER_HEARTBEAT_PATH)
+    try:
+        return validate_finished_experiment(status, run_id)
+    except ExperimentExportError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

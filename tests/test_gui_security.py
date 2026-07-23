@@ -5,7 +5,7 @@ from pydantic import ValidationError
 
 from gui.app import app
 from gui.routes.schedule_api import ActivationRequest
-from gui.routes.scheduler import CancellationRequest
+from gui.routes.scheduler import CancellationRequest, ExperimentDeletionRequest
 from gui.services.schedule_form import ScheduleFormData
 
 
@@ -66,6 +66,14 @@ def test_api_rejects_invalid_or_excessive_content_lengths(length):
     [
         (ActivationRequest, {"draft_hash": "a" * 64, "unexpected": True}),
         (CancellationRequest, {"schedule_hash": "a" * 64, "unexpected": True}),
+        (
+            ExperimentDeletionRequest,
+            {
+                "schedule_hash": "a" * 64,
+                "experiment_name": "Finished plants",
+                "unexpected": True,
+            },
+        ),
         (
             ScheduleFormData,
             {

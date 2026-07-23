@@ -54,6 +54,7 @@ def test_spa_fallback_and_all_user_routes_are_registered_in_react():
         'path="schedule/review"',
         'path="schedule/activation"',
         'path="camera"',
+        'path="experiments/:runId"',
     ):
         assert route in source
 
@@ -85,8 +86,8 @@ def test_scheduler_page_has_context_sensitive_next_actions():
     assert 'draftState === "invalid"' in source
     assert 'schedule?.lifecycle !== "finished"' in source
     assert "Review draft" in source
-    assert "Create next schedule" in source
     assert "Experiment finished with capture issues" in source
+    assert "Download experiment data" in source
     assert "Replace schedule…" in source
 
 

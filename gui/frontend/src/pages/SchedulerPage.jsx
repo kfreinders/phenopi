@@ -12,7 +12,7 @@ function NextAction({ schedule, draftState, summary }) {
   if (draftState === "invalid") return <section className="card schedule-action"><div><span className="eyebrow">Schedule draft</span><h3>Draft needs attention</h3><p>Open the schedule builder to correct the saved draft.</p></div><Link className="primary-link" to="/schedule">Open schedule builder</Link></section>;
   if (schedule?.lifecycle !== "finished") return null;
   const issues = summary && summary.failed + summary.missed + summary.elapsed_unreported > 0;
-  return <section className="card schedule-action"><div><span className="eyebrow">Experiment complete</span><h3>{issues ? "Experiment finished with capture issues" : "Experiment finished"}</h3><p>{issues ? "Review the capture outcomes below before closing this dataset." : "This completed schedule remains available below for reference."}</p></div><Link className="primary-link" to="/schedule">Create next schedule</Link></section>;
+  return <section className="card schedule-action"><div><span className="eyebrow">Experiment complete</span><h3>{issues ? "Experiment finished with capture issues" : "Experiment finished"}</h3><p>{issues ? "Review the outcomes, then download the experiment data." : "Download the completed dataset to your computer."}</p></div><Link className="primary-link" to={`/experiments/${schedule.run.id}`}>Download experiment data</Link></section>;
 }
 
 export function SchedulerPage() {
