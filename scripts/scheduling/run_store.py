@@ -231,11 +231,18 @@ class RunArchive:
     def latest_events(self) -> dict[str, dict[str, Any]]:
         return {event["capture_id"]: event for event in self.events()}
 
-    def record_unreported_past(self, now: datetime) -> None:
+    def record_unreported_past(
+        self,
+        now: datetime,
+        *,
+        cutoff: datetime | None = None,
+    ) -> None:
+        """Record captures too old to be recovered by the scheduler."""
         recorded = self.latest_events()
+        missed_before = cutoff or now
         for scheduled_at in self.expected_times:
             capture_id = scheduled_at.isoformat()
-            if scheduled_at < now and capture_id not in recorded:
+            if scheduled_at < missed_before and capture_id not in recorded:
                 self.record(
                     scheduled_at=scheduled_at,
                     status="missed",

@@ -403,6 +403,43 @@ def test_scheduler_setup_adds_control_and_future_capture_jobs(
     assert heartbeat.states[0][2]["schedule"]["times"] == ["09:00"]
 
 
+def test_scheduler_keeps_jobs_inside_misfire_grace_and_drops_older_jobs(
+    scheduler_config, monkeypatch
+):
+    fixed_now = datetime(2026, 7, 23, 12, 20, 30, tzinfo=TZ)
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return fixed_now if tz is None else fixed_now.astimezone(tz)
+
+    write_schedule(
+        scheduler_config.schedule_path,
+        start_date=fixed_now.date().isoformat(),
+        times=["12:10", "12:15", "12:25"],
+    )
+    fake_scheduler = FakeScheduler()
+    monkeypatch.setattr(scheduler_module, "datetime", FixedDateTime)
+    monkeypatch.setattr(
+        scheduler_module,
+        "make_scheduler",
+        lambda config, path: fake_scheduler,
+    )
+
+    scheduler_module.run_scheduler_until_reload(scheduler_config)
+
+    capture_jobs = [
+        kwargs
+        for _, kwargs in fake_scheduler.jobs
+        if kwargs["id"].startswith("capture_")
+    ]
+    assert [job["run_date"].strftime("%H:%M") for job in capture_jobs] == [
+        "12:15",
+        "12:25",
+    ]
+    assert all(job["misfire_grace_time"] == 600 for job in capture_jobs)
+
+
 def test_named_run_uses_isolated_capture_directory_and_status_provider(
     scheduler_config, monkeypatch
 ):

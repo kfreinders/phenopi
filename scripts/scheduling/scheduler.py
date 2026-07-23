@@ -445,7 +445,11 @@ def run_scheduler_until_reload(
                 schedule_hash,
                 run_times,
             )
-            run_archive.record_unreported_past(datetime.now(tz))
+            now = datetime.now(tz)
+            run_archive.record_unreported_past(
+                now,
+                cutoff=now - config.misfire_grace,
+            )
         except (OSError, ValueError) as exc:
             if heartbeat is not None:
                 heartbeat.set_capture_status_provider(None)
@@ -525,12 +529,13 @@ def run_scheduler_until_reload(
         )
 
     now = datetime.now(tz)
+    late_cutoff = now - config.misfire_grace
     scheduled = 0
-    skipped_past = 0
+    skipped_late = 0
 
     for run_time in run_times:
-        if run_time < now:
-            skipped_past += 1
+        if run_time < late_cutoff:
+            skipped_late += 1
             continue
 
         scheduler.add_job(
@@ -551,7 +556,7 @@ def run_scheduler_until_reload(
         jobstore_path=jobstore_path,
         run_times=run_times,
         scheduled=scheduled,
-        skipped_late=skipped_past,
+        skipped_late=skipped_late,
         jobstore_existed=jobstore_existed,
         stale_deleted=stale_deleted,
     )

@@ -82,6 +82,28 @@ def test_run_archive_records_unreported_past_captures_as_missed(tmp_path):
     assert archive.status_payload(NOW)["summary"]["missed"] == 1
 
 
+def test_run_archive_does_not_mark_recoverable_grace_window_capture_missed(
+    tmp_path,
+):
+    too_old = NOW - timedelta(minutes=11)
+    recoverable = NOW - timedelta(minutes=5)
+    archive = RunArchive(
+        tmp_path,
+        schedule(),
+        "a" * 64,
+        [too_old, recoverable],
+    )
+
+    archive.record_unreported_past(
+        NOW,
+        cutoff=NOW - timedelta(minutes=10),
+    )
+
+    payload = archive.status_payload(NOW)
+    assert payload["summary"]["missed"] == 1
+    assert payload["summary"]["elapsed_unreported"] == 1
+
+
 def test_status_payload_groups_current_day_results_by_time_point(tmp_path):
     configured = schedule(replicates=2, replicate_interval_seconds=10)
     expected = [
