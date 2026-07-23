@@ -168,6 +168,105 @@ button {
   font-weight: 750;
   cursor: pointer;
 }
+
+:is(button, .button-link, .primary-link, .camera-continue-link) {
+  --button-bloom: rgb(255 255 255 / 20%);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition:
+    transform 90ms ease-out,
+    box-shadow 90ms ease-out,
+    filter 90ms ease-out,
+    background-color 90ms ease-out,
+    border-color 90ms ease-out;
+}
+
+:is(button, .button-link, .primary-link, .camera-continue-link)::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -45%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--button-bloom) 0 36%, transparent 68%);
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(.55);
+  transition: opacity 110ms ease-out, transform 140ms cubic-bezier(.2, .8, .2, 1);
+}
+
+:is(button.secondary, .button-link.secondary) {
+  --button-bloom: rgb(15 95 185 / 13%);
+}
+
+:is(button.text-button, .danger-button) {
+  --button-bloom: rgb(180 35 24 / 12%);
+}
+
+:is(button:not(:disabled), .button-link, .primary-link, .camera-continue-link):hover::before,
+:is(button:not(:disabled), .button-link, .primary-link, .camera-continue-link):focus-visible::before {
+  opacity: 1;
+  transform: scale(1);
+}
+
+:is(button:not(:disabled), .button-link, .primary-link, .camera-continue-link):hover,
+:is(button:not(:disabled), .button-link, .primary-link, .camera-continue-link):focus-visible {
+  box-shadow: 0 2px 5px rgb(16 24 40 / 14%);
+}
+
+:is(
+  button:not(:disabled):not(.secondary):not(.text-button):not(.danger-button),
+  .button-link:not(.secondary),
+  .primary-link,
+  .camera-continue-link
+):hover,
+:is(
+  button:not(:disabled):not(.secondary):not(.text-button):not(.danger-button),
+  .button-link:not(.secondary),
+  .primary-link,
+  .camera-continue-link
+):focus-visible {
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 28%),
+    0 2px 5px rgb(16 24 40 / 14%);
+  filter: brightness(.88) saturate(1.04);
+}
+
+:is(button:not(:disabled), .button-link, .primary-link, .camera-continue-link):focus-visible {
+  outline: 2px solid rgb(132 173 255 / 50%);
+  outline-offset: 2px;
+}
+
+:is(button:not(:disabled), .button-link, .primary-link, .camera-continue-link):active {
+  box-shadow: inset 0 1px 2px rgb(16 24 40 / 16%);
+  transform: scale(.99);
+  transition-duration: 55ms;
+}
+
+:is(button:not(:disabled), .button-link, .primary-link, .camera-continue-link):active::before {
+  opacity: .55;
+  transform: scale(1.12);
+  transition-duration: 45ms;
+}
+
+:is(
+  button:not(:disabled):not(.secondary):not(.text-button):not(.danger-button),
+  .button-link:not(.secondary),
+  .primary-link,
+  .camera-continue-link
+):active {
+  box-shadow: inset 0 1px 3px rgb(16 24 40 / 24%);
+  filter: brightness(.82) saturate(1.02);
+}
+
+button:disabled {
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: .5;
+  filter: none;
+  transform: none;
+}
+
 button.secondary {
   color: var(--blue-dark);
   background: var(--surface-soft);
@@ -201,4 +300,16 @@ code { background: #eef2f7; padding: 0.1rem 0.25rem; border-radius: 0.25rem; }
   .tab { transition: none; }
   .tab[href]:hover,
   .tab[href]:focus-visible { transform: none; }
+  :is(button, .button-link, .primary-link, .camera-continue-link) {
+    transition: none;
+  }
+  :is(button, .button-link, .primary-link, .camera-continue-link)::before {
+    transition: none;
+    transform: none;
+  }
+  :is(button:not(:disabled), .button-link, .primary-link, .camera-continue-link):hover,
+  :is(button:not(:disabled), .button-link, .primary-link, .camera-continue-link):focus-visible,
+  :is(button:not(:disabled), .button-link, .primary-link, .camera-continue-link):active {
+    transform: none;
+  }
 }

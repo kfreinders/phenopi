@@ -111,8 +111,6 @@
 .review-action-buttons .text-button { border: 1px solid #fecdca; background: #fff; }
 .review-action-buttons button, .review-action-buttons .button-link { min-height: 2.85rem; white-space: nowrap; }
 .blocked-copy { color: var(--red) !important; }
-button:disabled { cursor: not-allowed; opacity: .5; }
-
 .activation-status { display: grid; justify-items: center; gap: 1rem; padding: 3rem; text-align: center; }
 .activation-status h2 { margin: .2rem 0; }
 .activation-status p { max-width: 44rem; margin: 0; }

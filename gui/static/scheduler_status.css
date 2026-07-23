@@ -13,9 +13,8 @@
 .schedule-empty { display: grid; justify-items: center; padding: 2.25rem; text-align: center; }
 .schedule-empty h3 { margin: 0 0 1rem; }
 .primary-link { padding: .7rem 1rem; border-radius: .65rem; color: white; background: var(--blue); text-decoration: none; font-weight: 750; }
-.schedule-empty .primary-link { animation: schedule-cta-pulse 1.6s ease-in-out infinite; transition: background-color 150ms ease, box-shadow 150ms ease, transform 150ms ease; }
-.schedule-empty .primary-link:hover, .schedule-empty .primary-link:focus-visible { animation: none; background: var(--blue-dark); box-shadow: 0 .5rem 1rem rgb(15 95 185 / 28%); transform: translateY(-2px); }
-.schedule-empty .primary-link:active { box-shadow: 0 .2rem .45rem rgb(15 95 185 / 22%); transform: translateY(0); }
+.schedule-empty .primary-link { animation: schedule-cta-pulse 1.6s ease-in-out infinite; }
+.schedule-empty .primary-link:hover, .schedule-empty .primary-link:focus-visible { animation: none; background: var(--blue-dark); }
 @keyframes schedule-cta-pulse {
   50% {
     box-shadow: 0 0 0 .7rem rgb(46 144 250 / 24%), 0 .35rem 1rem rgb(15 95 185 / 22%);
