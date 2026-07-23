@@ -17,3 +17,9 @@ main.*
 # React frontend
 gui/frontend/node_modules/
 gui/react-dist/
+
+/bin/
+/include/
+/lib/
+/lib64
+/pyvenv.cfg
