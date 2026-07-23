@@ -5,6 +5,7 @@ import binascii
 
 from scripts.analysis.config import AnalysisConfig
 from scripts.analysis.preview import (
+    apply_mask_exclusions,
     encode_png,
     fit_for_display,
     generate_analysis_preview,
@@ -20,6 +21,7 @@ def build_analysis_preview(
     image_data: str,
     config_data: dict,
     crop_data: dict | None = None,
+    mask_exclusions: list[dict] | None = None,
 ) -> dict:
     image_bytes = _decode_image_data(image_data)
     config = AnalysisConfig.from_dict(config_data)
@@ -31,6 +33,7 @@ def build_analysis_preview(
             if crop_data is not None
             else None
         ),
+        mask_exclusions=mask_exclusions,
     )
     return {
         "config": config.to_dict(),
@@ -48,15 +51,20 @@ def build_roi_preview(
     image_data: str,
     config_data: dict,
     crop_data: dict,
+    mask_exclusions: list[dict] | None = None,
 ) -> dict:
     image_bytes = _decode_image_data(image_data)
     config = AnalysisConfig.from_dict(config_data)
     prepared = prepare_analysis_image(image_bytes, config)
+    crop = AnalysisCrop.from_dict(crop_data)
+    calibration_mask = apply_mask_exclusions(
+        prepared.mask, crop, mask_exclusions or []
+    )
     definition = detect_roi_definition(
         prepared.image,
-        prepared.mask,
+        calibration_mask,
         config,
-        AnalysisCrop.from_dict(crop_data),
+        crop,
     )
     overlay = fit_for_display(definition.draw_overlay(prepared.image), 960)
     return {

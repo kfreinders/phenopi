@@ -27,12 +27,29 @@ class AnalysisCropRequest(BaseModel):
         return self
 
 
+class MaskPointRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+
+
+class MaskStrokeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    radius: float = Field(ge=0.002, le=0.1)
+    points: list[MaskPointRequest] = Field(min_length=1, max_length=2000)
+
+
 class AnalysisPreviewRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     image_data: str = Field(min_length=1, max_length=13_500_000)
     config: dict = Field(default_factory=dict)
     analysis_crop: AnalysisCropRequest | None = None
+    mask_exclusions: list[MaskStrokeRequest] = Field(
+        default_factory=list, max_length=200
+    )
 
 
 class RoiPreviewRequest(AnalysisPreviewRequest):
@@ -57,6 +74,7 @@ def preview_analysis(request: AnalysisPreviewRequest) -> dict:
                 if request.analysis_crop is not None
                 else None
             ),
+            [stroke.model_dump() for stroke in request.mask_exclusions],
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -69,6 +87,7 @@ def detect_analysis_roi(request: RoiPreviewRequest) -> dict:
             request.image_data,
             request.config,
             request.analysis_crop.model_dump(),
+            [stroke.model_dump() for stroke in request.mask_exclusions],
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

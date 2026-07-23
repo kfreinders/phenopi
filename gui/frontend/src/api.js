@@ -26,11 +26,11 @@ export async function api(path, options = {}) {
 export const getSchedulerStatus = () => api("/api/scheduler/status");
 export const getSchedulerHealth = () => api("/api/scheduler/health");
 export const getAnalysisConfig = () => api("/api/analysis/configure");
-export const previewAnalysis = (imageData, config, analysisCrop, signal) => api(
+export const previewAnalysis = (imageData, config, analysisCrop, maskExclusions, signal) => api(
   "/api/analysis/preview",
-  { method: "POST", body: JSON.stringify({ image_data: imageData, config, analysis_crop: analysisCrop }), signal },
+  { method: "POST", body: JSON.stringify({ image_data: imageData, config, analysis_crop: analysisCrop, mask_exclusions: maskExclusions }), signal },
 );
-export const detectAnalysisRoi = (imageData, config, analysisCrop) => api(
+export const detectAnalysisRoi = (imageData, config, analysisCrop, maskExclusions) => api(
   "/api/analysis/roi",
-  { method: "POST", body: JSON.stringify({ image_data: imageData, config, analysis_crop: analysisCrop }) },
+  { method: "POST", body: JSON.stringify({ image_data: imageData, config, analysis_crop: analysisCrop, mask_exclusions: maskExclusions }) },
 );

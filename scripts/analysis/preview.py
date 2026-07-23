@@ -51,6 +51,7 @@ def generate_analysis_preview(
     *,
     max_dimension: int = 960,
     analysis_crop: AnalysisCrop | None = None,
+    mask_exclusions: list[dict] | None = None,
 ) -> AnalysisPreview:
     """Generate display-sized segmentation stages without measuring traits."""
     prepared = prepare_analysis_image(image_bytes, config)
@@ -59,6 +60,8 @@ def generate_analysis_preview(
         prepared.channel,
         prepared.mask,
     )
+    crop = analysis_crop or AnalysisCrop()
+    mask = apply_mask_exclusions(mask, crop, mask_exclusions or [])
 
     overlay = rotated.copy()
     selected = mask > 0
@@ -66,7 +69,6 @@ def generate_analysis_preview(
     overlay[selected] = (
         overlay[selected].astype(np.float32) * 0.45 + green * 0.55
     ).astype(np.uint8)
-    crop = analysis_crop or AnalysisCrop()
     x0, y0, x1, y1 = crop.pixel_bounds(rotated.shape)
 
     return AnalysisPreview(
@@ -79,6 +81,45 @@ def generate_analysis_preview(
         ),
         overlay=fit_for_display(overlay[y0:y1, x0:x1], max_dimension),
     )
+
+
+def apply_mask_exclusions(
+    mask: np.ndarray,
+    analysis_crop: AnalysisCrop,
+    strokes: list[dict],
+) -> np.ndarray:
+    """Erase calibration-only brush strokes from a segmentation mask."""
+    if not strokes:
+        return mask
+    edited = mask.copy()
+    x0, y0, x1, y1 = analysis_crop.pixel_bounds(mask.shape)
+    crop_width = x1 - x0
+    crop_height = y1 - y0
+    radius_scale = min(crop_width, crop_height)
+
+    for stroke in strokes:
+        radius = float(stroke["radius"])
+        points = stroke["points"]
+        pixel_points = [
+            (
+                x0 + round(float(point["x"]) * crop_width),
+                y0 + round(float(point["y"]) * crop_height),
+            )
+            for point in points
+        ]
+        brush_radius = max(1, round(radius * radius_scale))
+        for point in pixel_points:
+            cv2.circle(edited, point, brush_radius, 0, thickness=-1)
+        for start, end in zip(pixel_points, pixel_points[1:]):
+            cv2.line(
+                edited,
+                start,
+                end,
+                0,
+                thickness=brush_radius * 2,
+                lineType=cv2.LINE_8,
+            )
+    return edited
 
 
 def encode_png(image: np.ndarray) -> bytes:

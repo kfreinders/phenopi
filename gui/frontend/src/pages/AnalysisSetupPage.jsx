@@ -15,6 +15,8 @@ export function AnalysisSetupPage() {
   const [stages, setStages] = useState(null);
   const [roi, setRoi] = useState(null);
   const [analysisCrop, setAnalysisCrop] = useState({ x: 0, y: 0, width: 1, height: 1 });
+  const [maskExclusions, setMaskExclusions] = useState([]);
+  const [brushRadius, setBrushRadius] = useState(0.015);
   const [detectingRoi, setDetectingRoi] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -34,7 +36,7 @@ export function AnalysisSetupPage() {
       setLoading(true);
       setError(null);
       try {
-        const result = await previewAnalysis(imageData, config, analysisCrop, controller.signal);
+        const result = await previewAnalysis(imageData, config, analysisCrop, maskExclusions, controller.signal);
         if (currentRequest === requestNumber.current) setStages(result.stages);
       } catch (reason) {
         if (reason.name !== "AbortError" && currentRequest === requestNumber.current) setError(reason);
@@ -43,7 +45,7 @@ export function AnalysisSetupPage() {
       }
     }, 350);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [imageData, config, analysisCrop]);
+  }, [imageData, config, analysisCrop, maskExclusions]);
 
   const selectImage = event => {
     const file = event.target.files?.[0];
@@ -63,6 +65,7 @@ export function AnalysisSetupPage() {
       setStages(null);
       setRoi(null);
       setAnalysisCrop({ x: 0, y: 0, width: 1, height: 1 });
+      setMaskExclusions([]);
       setError(null);
     };
     reader.onerror = () => setError(new Error("The calibration image could not be read."));
@@ -71,18 +74,26 @@ export function AnalysisSetupPage() {
 
   const update = (key, value) => {
     setRoi(null);
-    if (key === "rotate_angle") setAnalysisCrop({ x: 0, y: 0, width: 1, height: 1 });
+    if (key === "rotate_angle") {
+      setAnalysisCrop({ x: 0, y: 0, width: 1, height: 1 });
+      setMaskExclusions([]);
+    }
     setConfig(current => ({ ...current, [key]: value }));
   };
   const updateCrop = value => {
     setRoi(null);
+    setMaskExclusions([]);
     setAnalysisCrop(value);
+  };
+  const updateMaskExclusions = updater => {
+    setRoi(null);
+    setMaskExclusions(updater);
   };
   const detectRoi = async () => {
     setDetectingRoi(true);
     setError(null);
     try {
-      const result = await detectAnalysisRoi(imageData, config, analysisCrop);
+      const result = await detectAnalysisRoi(imageData, config, analysisCrop, maskExclusions);
       setRoi(result);
     } catch (reason) {
       setError(reason);
@@ -138,7 +149,7 @@ export function AnalysisSetupPage() {
           </article>
           {Object.entries(stageLabels).map(([key, [title, description]]) => <article className="card analysis-stage" key={key}>
             <header><div><h3>{title}</h3><p>{description}</p></div>{loading && key === "overlay" && <span className="analysis-updating">Updating…</span>}</header>
-            <div className="analysis-stage-image"><img src={stages[key]} alt={`${title} analysis preview`} /></div>
+            {key === "mask" ? <MaskEditor image={stages.mask} strokes={maskExclusions} setStrokes={updateMaskExclusions} radius={brushRadius} setRadius={setBrushRadius} /> : <div className="analysis-stage-image"><img src={stages[key]} alt={`${title} analysis preview`} /></div>}
           </article>)}
           {roi && <article className="card analysis-stage analysis-stage--roi">
             <header><div><h3>Automatic ROI grid</h3><p>{roi.definition.rows} × {roi.definition.columns} reusable regions</p></div><span className="analysis-roi-ready">Detected</span></header>
@@ -223,4 +234,88 @@ export function adjustCrop(crop, action, handle, deltaX, deltaY, minimum = 0.02)
     width: normalized(right - left),
     height: normalized(bottom - top),
   };
+}
+
+function MaskEditor({ image, strokes, setStrokes, radius, setRadius }) {
+  const surface = useRef(null);
+  const canvas = useRef(null);
+  const drawing = useRef(false);
+
+  useEffect(() => {
+    const redraw = () => {
+      const bounds = surface.current?.getBoundingClientRect();
+      const context = canvas.current?.getContext("2d");
+      if (!bounds || !context) return;
+      const scale = window.devicePixelRatio || 1;
+      canvas.current.width = Math.max(1, Math.round(bounds.width * scale));
+      canvas.current.height = Math.max(1, Math.round(bounds.height * scale));
+      context.scale(scale, scale);
+      context.clearRect(0, 0, bounds.width, bounds.height);
+      context.strokeStyle = "rgba(0, 0, 0, .88)";
+      context.fillStyle = "rgba(0, 0, 0, .88)";
+      context.lineCap = "round";
+      context.lineJoin = "round";
+      for (const stroke of strokes) {
+        const brush = stroke.radius * Math.min(bounds.width, bounds.height);
+        context.lineWidth = brush * 2;
+        context.beginPath();
+        stroke.points.forEach((point, index) => {
+          const x = point.x * bounds.width;
+          const y = point.y * bounds.height;
+          if (index === 0) context.moveTo(x, y);
+          else context.lineTo(x, y);
+        });
+        context.stroke();
+        if (stroke.points.length === 1) {
+          const point = stroke.points[0];
+          context.beginPath();
+          context.arc(point.x * bounds.width, point.y * bounds.height, brush, 0, Math.PI * 2);
+          context.fill();
+        }
+      }
+    };
+    redraw();
+    const observer = new ResizeObserver(redraw);
+    if (surface.current) observer.observe(surface.current);
+    return () => observer.disconnect();
+  }, [strokes, image]);
+
+  const point = event => {
+    const bounds = surface.current.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)),
+      y: Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height)),
+    };
+  };
+  const start = event => {
+    drawing.current = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setStrokes(current => [...current, { radius, points: [point(event)] }]);
+  };
+  const move = event => {
+    if (!drawing.current) return;
+    const nextPoint = point(event);
+    setStrokes(current => {
+      const next = [...current];
+      const stroke = next[next.length - 1];
+      const previous = stroke.points[stroke.points.length - 1];
+      if (Math.hypot(nextPoint.x - previous.x, nextPoint.y - previous.y) < 0.002) return current;
+      next[next.length - 1] = { ...stroke, points: [...stroke.points, nextPoint] };
+      return next;
+    });
+  };
+  const finish = () => { drawing.current = false; };
+
+  return <div className="analysis-mask-editor">
+    <div className="analysis-mask-tools">
+      <label>Brush size<input type="range" min="0.002" max="0.06" step="0.002" value={radius} onChange={event => setRadius(Number(event.target.value))} /></label>
+      <button type="button" className="secondary" disabled={!strokes.length} onClick={() => setStrokes(current => current.slice(0, -1))}>Undo stroke</button>
+      <button type="button" className="text-button" disabled={!strokes.length} onClick={() => setStrokes([])}>Clear edits</button>
+    </div>
+    <p className="analysis-mask-hint">Brush over white artefacts to exclude them from ROI calibration.</p>
+    <div ref={surface} className="analysis-mask-surface" onPointerDown={start} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish}>
+      <img src={image} alt="Editable plant-mask analysis preview" draggable={false} />
+      <canvas ref={canvas} />
+    </div>
+  </div>;
 }

@@ -6,7 +6,10 @@ import pytest
 
 from gui.services.analysis_preview import build_analysis_preview
 from scripts.analysis.config import AnalysisConfig
-from scripts.analysis.preview import generate_analysis_preview
+from scripts.analysis.preview import (
+    apply_mask_exclusions,
+    generate_analysis_preview,
+)
 from scripts.analysis.roi import AnalysisCrop
 
 
@@ -44,6 +47,21 @@ def test_processing_previews_use_crop_while_input_remains_complete():
     assert preview.channel.shape == (80, 60)
     assert preview.mask.shape == (80, 60)
     assert preview.overlay.shape == (80, 60, 3)
+
+
+def test_calibration_brush_erases_only_selected_crop_coordinates():
+    mask = np.full((100, 200), 255, dtype=np.uint8)
+    crop = AnalysisCrop(x=0.5, y=0, width=0.5, height=1)
+
+    edited = apply_mask_exclusions(
+        mask,
+        crop,
+        [{"radius": 0.1, "points": [{"x": 0.5, "y": 0.5}]}],
+    )
+
+    assert edited[50, 150] == 0
+    assert edited[50, 50] == 255
+    assert mask[50, 150] == 255
 
 
 def test_preview_service_returns_browser_safe_images_and_config_identity():
