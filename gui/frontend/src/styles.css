@@ -16,7 +16,8 @@
 .stop-experiment h3 { margin: .25rem 0; color: var(--red); }
 .stop-experiment p { margin: 0; }
 .stop-confirmation { display: grid; justify-items: end; gap: .7rem; }
+.stop-actions { display: flex; align-items: center; justify-content: flex-end; gap: .65rem; flex-wrap: wrap; }
 .stop-confirmation label { flex-direction: row; align-items: center; font-size: .9rem; }
 .stop-confirmation > div { display: flex; gap: .65rem; }
-@media (max-width: 760px) { .stop-experiment { align-items: flex-start; flex-direction: column; } .stop-confirmation { justify-items: start; } }
+@media (max-width: 760px) { .stop-experiment { align-items: flex-start; flex-direction: column; } .stop-actions { justify-content: flex-start; } .stop-confirmation { justify-items: start; } }
 @media (prefers-reduced-motion: reduce) { .react-spinner { animation: none; } }

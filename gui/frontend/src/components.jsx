@@ -56,8 +56,6 @@ export function SchedulePreview({ preview }) {
 export function Navigation() {
   return <nav className="tabs" aria-label="Phenopi sections">
     <NavLink className={({ isActive }) => `tab${isActive ? " active" : ""}`} to="/scheduler">Scheduler status</NavLink>
-    <NavLink className={({ isActive }) => `tab${isActive ? " active" : ""}`} to="/schedule">Schedule builder</NavLink>
     <NavLink className={({ isActive }) => `tab${isActive ? " active" : ""}`} to="/camera">Camera preview</NavLink>
   </nav>;
 }
-

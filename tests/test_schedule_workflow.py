@@ -185,6 +185,28 @@ def test_active_schedule_requires_confirmation_before_atomic_promotion(tmp_path,
     assert activated["schedule_hash"] == draft.schedule_hash
 
 
+def test_upcoming_schedule_requires_confirmation_before_replacement(tmp_path, monkeypatch):
+    draft_path, schedule_path, heartbeat = configure_paths(monkeypatch, tmp_path)
+    draft = persist_schedule_draft(schedule_form_data(), draft_path)
+    write_heartbeat(heartbeat, schedule={
+        "hash": "b" * 64,
+        "timezone": "Europe/Amsterdam",
+        "start_date": (date.today() + timedelta(days=2)).isoformat(),
+        "num_days": 2,
+        "times": ["09:00"],
+        "replicates": 1,
+        "replicate_interval_seconds": 0,
+    })
+    request = schedule_api.ActivationRequest(draft_hash=draft.schedule_hash)
+
+    warning = schedule_api.activate_schedule(request)
+
+    assert warning["confirmation_required"] is True
+    assert warning["review"]["replacing_schedule"] is True
+    assert draft_path.exists()
+    assert not schedule_path.exists()
+
+
 def test_schedule_api_routes_and_react_workflow_are_complete():
     assert str(app.url_path_for("configure_schedule")) == "/api/schedule/configure"
     assert str(app.url_path_for("create_schedule_draft")) == "/api/schedule/draft"

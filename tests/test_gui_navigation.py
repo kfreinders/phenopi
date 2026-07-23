@@ -26,15 +26,12 @@ def draft_form() -> ScheduleFormData:
     )
 
 
-def test_react_router_owns_the_main_navigation_in_workflow_order():
+def test_main_navigation_keeps_the_builder_as_a_contextual_workflow():
     source = (FRONTEND / "components.jsx").read_text()
     navigation = source[source.index("function Navigation") :]
 
-    scheduler = navigation.index('to="/scheduler"')
-    schedule = navigation.index('to="/schedule"')
-    camera = navigation.index('to="/camera"')
-
-    assert scheduler < schedule < camera
+    assert navigation.index('to="/scheduler"') < navigation.index('to="/camera"')
+    assert 'to="/schedule"' not in navigation
     assert "React Router" not in navigation
 
 
@@ -90,6 +87,7 @@ def test_scheduler_page_has_context_sensitive_next_actions():
     assert "Review draft" in source
     assert "Create next schedule" in source
     assert "Experiment finished with capture issues" in source
+    assert "Replace schedule…" in source
 
 
 def test_cancel_api_requires_a_healthy_matching_active_schedule(

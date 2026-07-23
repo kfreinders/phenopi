@@ -101,8 +101,10 @@ def activate_schedule(request: ActivationRequest) -> dict:
         discard_schedule_draft(SCHEDULE_DRAFT_PATH)
         return {"schedule_hash": draft.schedule_hash, "already_active": True}
 
-    replacing_active = bool(active and active.get("lifecycle") == "active")
-    if replacing_active and not request.confirm_active_replacement:
+    replacing_schedule = bool(
+        active and active.get("lifecycle") in {"active", "upcoming"}
+    )
+    if replacing_schedule and not request.confirm_active_replacement:
         return {"confirmation_required": True, "review": review}
 
     try:
@@ -166,4 +168,5 @@ def _review_payload(draft, preview, status: dict) -> dict:
             comparable and comparable.get("hash") == draft.schedule_hash
         ),
         "replacing_active": bool(active and active.get("lifecycle") == "active"),
+        "replacing_schedule": bool(comparable),
     }
