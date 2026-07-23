@@ -286,7 +286,7 @@ def parse_args() -> argparse.Namespace:
         ),
     )
 
-    parser.add_argument("--rotate-angle", type=float, default=1.0)
+    parser.add_argument("--rotate-angle", type=float, default=0.0)
     parser.add_argument("--threshold", type=int, default=100)
     parser.add_argument("--fill-size", type=int, default=200)
     parser.add_argument(

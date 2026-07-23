@@ -16,7 +16,7 @@ class AnalysisConfig:
 
     SCHEMA_VERSION: ClassVar[int] = 1
 
-    rotate_angle: float = 1.0
+    rotate_angle: float = 0.0
     sepchannel: str = "a"
     threshold: int = 100
     fill_size: int = 200
