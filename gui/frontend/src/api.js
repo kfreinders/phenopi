@@ -34,3 +34,11 @@ export const detectAnalysisRoi = (imageData, config, analysisCrop, maskExclusion
   "/api/analysis/roi",
   { method: "POST", body: JSON.stringify({ image_data: imageData, config, analysis_crop: analysisCrop, mask_exclusions: maskExclusions }) },
 );
+export const saveAnalysisProfile = (config, roi) => api(
+  "/api/analysis/profile",
+  { method: "PUT", body: JSON.stringify({ config, roi }) },
+);
+export const deleteAnalysisProfile = () => api(
+  "/api/analysis/profile",
+  { method: "DELETE" },
+);

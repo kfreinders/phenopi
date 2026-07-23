@@ -9,6 +9,7 @@ from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
+from scripts.analysis.profile import AnalysisProfile
 from .schedule_validation import (
     validate_replicate_windows,
     validate_schedule_size,
@@ -62,6 +63,7 @@ class Schedule:
     replicates: int = 1
     replicate_interval_seconds: int = 0
     run: RunMetadata | None = None
+    analysis: AnalysisProfile | None = None
 
     def __post_init__(self) -> None:
         validate_schedule_size(
@@ -92,6 +94,7 @@ class Schedule:
         replicates: int = 1,
         replicate_interval_seconds: int = 0,
         run: Mapping[str, Any] | RunMetadata | None = None,
+        analysis: Mapping[str, Any] | AnalysisProfile | None = None,
         deduplicate_times: bool = False,
     ) -> "Schedule":
         parsed_date = _parse_date(start_date)
@@ -106,6 +109,13 @@ class Schedule:
             if isinstance(run, RunMetadata)
             else RunMetadata.from_dict(run) if run is not None else None
         )
+        parsed_analysis = (
+            analysis
+            if isinstance(analysis, AnalysisProfile)
+            else AnalysisProfile.from_dict(dict(analysis))
+            if analysis is not None
+            else None
+        )
         return cls(
             start_date=parsed_date,
             num_days=int(num_days),
@@ -113,6 +123,7 @@ class Schedule:
             replicates=int(replicates),
             replicate_interval_seconds=int(replicate_interval_seconds),
             run=parsed_run,
+            analysis=parsed_analysis,
         )
 
     @classmethod
@@ -130,6 +141,7 @@ class Schedule:
                     "replicate_interval_seconds", 0
                 ),
                 run=value.get("run"),
+                analysis=value.get("analysis"),
                 deduplicate_times=True,
             )
         except TypeError as exc:
@@ -184,6 +196,8 @@ class Schedule:
         }
         if self.run is not None:
             value["run"] = self.run.to_dict()
+        if self.analysis is not None:
+            value["analysis"] = self.analysis.to_dict()
         return value
 
     def to_json(self) -> str:

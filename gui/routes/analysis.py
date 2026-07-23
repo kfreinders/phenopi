@@ -7,6 +7,10 @@ from gui.services.analysis_preview import (
     build_analysis_preview,
     build_roi_preview,
 )
+from phenopi.config import ANALYSIS_PROFILE_PATH
+from scripts.analysis.profile import AnalysisProfile
+from scripts.analysis.config import AnalysisConfig
+from scripts.analysis.roi import RoiDefinition
 
 
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
@@ -56,11 +60,19 @@ class RoiPreviewRequest(AnalysisPreviewRequest):
     analysis_crop: AnalysisCropRequest
 
 
+class SaveAnalysisProfileRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    config: dict
+    roi: dict
+
+
 @router.get("/configure")
 def configure_analysis() -> dict:
-    from scripts.analysis.config import AnalysisConfig
-
-    return {"config": AnalysisConfig().to_dict()}
+    return {
+        "config": AnalysisConfig().to_dict(),
+        "profile_saved": ANALYSIS_PROFILE_PATH.exists(),
+    }
 
 
 @router.post("/preview")
@@ -91,3 +103,31 @@ def detect_analysis_roi(request: RoiPreviewRequest) -> dict:
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.put("/profile")
+def save_analysis_profile(request: SaveAnalysisProfileRequest) -> dict:
+    try:
+        profile = AnalysisProfile(
+            schema_version=1,
+            config=AnalysisConfig.from_dict(request.config),
+            roi=RoiDefinition.from_dict(request.roi),
+        )
+        profile.save(ANALYSIS_PROFILE_PATH)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="The analysis setup could not be saved.",
+        ) from exc
+    return {
+        "saved": True,
+        "config_fingerprint": profile.config.fingerprint,
+        "roi_fingerprint": profile.roi.fingerprint,
+    }
+
+
+@router.delete("/profile", status_code=204)
+def delete_analysis_profile() -> None:
+    ANALYSIS_PROFILE_PATH.unlink(missing_ok=True)

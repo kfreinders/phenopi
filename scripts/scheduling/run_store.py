@@ -58,6 +58,7 @@ class RunArchive:
         self.directory = output_root / run_directory_name(schedule_data["start_date"], run)
         self.manifest_path = self.directory / "run.json"
         self.events_path = self.directory / "capture-events.jsonl"
+        self.analysis_dir = self.directory / "analysis"
         self.archive_path = self.directory.with_suffix(".zip")
         self._lock = Lock()
         self._archive_lock = Lock()
@@ -76,8 +77,10 @@ class RunArchive:
             if manifest.get("schedule_hash") != self.schedule_hash:
                 raise ValueError("This run ID is already associated with another schedule.")
             self._state = manifest.get("state", "active")
+            self._write_analysis_profile()
             return
         self.directory.mkdir(parents=True, exist_ok=True)
+        self._write_analysis_profile()
         manifest = {
             "version": RUN_MANIFEST_VERSION,
             "run": self.run,
@@ -90,6 +93,17 @@ class RunArchive:
             "superseded_by": None,
         }
         atomic_write_text(self.manifest_path, json.dumps(manifest, indent=2) + "\n")
+
+    def _write_analysis_profile(self) -> None:
+        if self.schedule.analysis is None:
+            return
+        self.analysis_dir.mkdir(parents=True, exist_ok=True)
+        self.schedule.analysis.config.save(
+            self.analysis_dir / "analysis-config.json"
+        )
+        self.schedule.analysis.roi.save(
+            self.analysis_dir / "roi-definition.json"
+        )
 
     def _find_existing_manifest(self, output_root: Path) -> Path | None:
         for path in output_root.glob("*/run.json") if output_root.exists() else []:

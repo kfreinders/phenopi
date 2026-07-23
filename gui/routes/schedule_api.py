@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict
 
 from phenopi.config import (
     DEFAULT_SCHEDULE_PATH,
+    ANALYSIS_PROFILE_PATH,
     SCHEDULE_DRAFT_PATH,
     SCHEDULER_HEARTBEAT_PATH,
 )
@@ -45,7 +46,11 @@ def configure_schedule(edit: bool = False) -> dict:
 @router.post("/draft")
 def create_schedule_draft(form: ScheduleFormData) -> dict:
     try:
-        persist_schedule_draft(form, SCHEDULE_DRAFT_PATH)
+        persist_schedule_draft(
+            form,
+            SCHEDULE_DRAFT_PATH,
+            ANALYSIS_PROFILE_PATH,
+        )
     except OSError as exc:
         raise HTTPException(
             status_code=500,

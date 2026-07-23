@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ErrorNotice, Loading } from "../components";
-import { detectAnalysisRoi, getAnalysisConfig, previewAnalysis } from "../api";
+import { detectAnalysisRoi, getAnalysisConfig, previewAnalysis, saveAnalysisProfile } from "../api";
 
 const stageLabels = {
   channel: ["LAB channel", "Values used for thresholding"],
@@ -20,11 +20,13 @@ export function AnalysisSetupPage() {
   const [detectingRoi, setDetectingRoi] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const requestNumber = useRef(0);
 
   useEffect(() => {
     getAnalysisConfig()
-      .then(payload => setConfig(payload.config))
+      .then(payload => { setConfig(payload.config); setSaved(payload.profile_saved); })
       .catch(setError);
   }, []);
 
@@ -64,6 +66,7 @@ export function AnalysisSetupPage() {
       setImageData(reader.result);
       setStages(null);
       setRoi(null);
+      setSaved(false);
       setAnalysisCrop({ x: 0, y: 0, width: 1, height: 1 });
       setMaskExclusions([]);
       setError(null);
@@ -74,6 +77,7 @@ export function AnalysisSetupPage() {
 
   const update = (key, value) => {
     setRoi(null);
+    setSaved(false);
     if (key === "rotate_angle") {
       setAnalysisCrop({ x: 0, y: 0, width: 1, height: 1 });
       setMaskExclusions([]);
@@ -82,11 +86,13 @@ export function AnalysisSetupPage() {
   };
   const updateCrop = value => {
     setRoi(null);
+    setSaved(false);
     setMaskExclusions([]);
     setAnalysisCrop(value);
   };
   const updateMaskExclusions = updater => {
     setRoi(null);
+    setSaved(false);
     setMaskExclusions(updater);
   };
   const detectRoi = async () => {
@@ -99,6 +105,18 @@ export function AnalysisSetupPage() {
       setError(reason);
     } finally {
       setDetectingRoi(false);
+    }
+  };
+  const saveProfile = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await saveAnalysisProfile(config, roi.definition);
+      setSaved(true);
+    } catch (reason) {
+      setError(reason);
+    } finally {
+      setSaving(false);
     }
   };
   if (!config) return <Loading label="Loading analysis settings" />;
@@ -154,6 +172,7 @@ export function AnalysisSetupPage() {
           {roi && <article className="card analysis-stage analysis-stage--roi">
             <header><div><h3>Automatic ROI grid</h3><p>{roi.definition.rows} × {roi.definition.columns} reusable regions</p></div><span className="analysis-roi-ready">Detected</span></header>
             <div className="analysis-stage-image"><img src={roi.overlay} alt="Automatically detected PlantCV ROI grid" /></div>
+            <footer className="analysis-save-profile"><div><strong>{saved ? "Analysis setup saved" : "Ready to save"}</strong><p>{saved ? "New experiment schedules will use this calibration automatically." : "Save this calibration before creating the experiment schedule."}</p></div><button type="button" onClick={saveProfile} disabled={saving || saved}>{saving ? "Saving…" : saved ? "Saved" : "Save analysis setup"}</button></footer>
           </article>}
         </div>}
       </section>

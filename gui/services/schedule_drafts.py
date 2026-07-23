@@ -8,7 +8,11 @@ from uuid import uuid4
 
 from pydantic import BaseModel
 
-from phenopi.config import DEFAULT_SCHEDULE_PATH, SCHEDULE_DRAFT_PATH
+from phenopi.config import (
+    ANALYSIS_PROFILE_PATH,
+    DEFAULT_SCHEDULE_PATH,
+    SCHEDULE_DRAFT_PATH,
+)
 from gui.services.schedule_builder import (
     PastStartDateError,
     SchedulePreview,
@@ -20,6 +24,7 @@ from scripts.scheduling.make_schedule import (
     schedule_json,
     write_schedule,
 )
+from scripts.analysis.profile import AnalysisProfile
 
 
 DRAFT_VERSION = 2
@@ -38,6 +43,7 @@ class ScheduleDraft(BaseModel):
 def persist_schedule_draft(
     form: ScheduleFormData,
     path: Path = SCHEDULE_DRAFT_PATH,
+    analysis_profile_path: Path = ANALYSIS_PROFILE_PATH,
 ) -> ScheduleDraft:
     preview = build_schedule_preview(**form.preview_arguments())
     run = {
@@ -48,6 +54,10 @@ def persist_schedule_draft(
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     schedule = {**preview.as_schedule_dict(), "run": run}
+    if analysis_profile_path.exists():
+        schedule["analysis"] = AnalysisProfile.load(
+            analysis_profile_path
+        ).to_dict()
     draft = ScheduleDraft(
         created_at=datetime.now(timezone.utc).isoformat(),
         form=form,
@@ -72,6 +82,10 @@ def load_schedule_draft(
         **preview.as_schedule_dict(),
         "run": draft.schedule.get("run"),
     }
+    if draft.schedule.get("analysis") is not None:
+        expected_schedule["analysis"] = AnalysisProfile.from_dict(
+            draft.schedule["analysis"]
+        ).to_dict()
     if expected_schedule != draft.schedule:
         raise ValueError("The saved schedule draft is inconsistent.")
     if _schedule_hash(draft.schedule) != draft.schedule_hash:
@@ -115,6 +129,7 @@ def activate_schedule_draft(
         replicates=preview.replicates,
         replicate_interval_seconds=preview.replicate_interval_seconds,
         run=draft.schedule["run"],
+        analysis=draft.schedule.get("analysis"),
         overwrite=True,
     )
     discard_schedule_draft(draft_path)

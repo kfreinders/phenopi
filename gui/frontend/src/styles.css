@@ -73,6 +73,8 @@
 .analysis-roi-note { margin: .7rem 0 0; color: var(--muted); font-size: .78rem; line-height: 1.45; }
 .analysis-stage--roi { grid-column: 1 / -1; }
 .analysis-roi-ready { padding: .3rem .55rem; border-radius: 999px; color: #067647; background: #dcfae6; font-size: .74rem; font-weight: 750; }
+.analysis-save-profile { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem; border-top: 1px solid var(--line); background: #f6fef9; }
+.analysis-save-profile p { margin: .2rem 0 0; color: var(--muted); font-size: .8rem; }
 .analysis-stage--crop { grid-column: 1 / -1; }
 .analysis-crop-reset { padding: .45rem .65rem; }
 .analysis-crop-canvas { position: relative; overflow: hidden; background: #111827; touch-action: none; user-select: none; line-height: 0; }

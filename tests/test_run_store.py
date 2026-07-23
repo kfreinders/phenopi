@@ -5,6 +5,9 @@ from zipfile import ZipFile
 
 import pytest
 
+from scripts.analysis.config import AnalysisConfig
+from scripts.analysis.profile import AnalysisProfile
+from scripts.analysis.roi import RoiCircle, RoiDefinition
 from scripts.scheduling.run_store import RunArchive, run_directory_name
 
 
@@ -42,6 +45,37 @@ def test_run_archive_creates_portable_manifest_and_safe_directory(tmp_path):
     assert manifest["run"] == configured["run"]
     assert manifest["schedule_hash"] == "a" * 64
     assert manifest["state"] == "active"
+
+
+def test_run_archive_materializes_attached_analysis_profile(tmp_path):
+    config = AnalysisConfig(roi_rows=1, roi_cols=1)
+    profile = AnalysisProfile(
+        1,
+        config,
+        RoiDefinition(
+            2,
+            1,
+            1,
+            100,
+            100,
+            config.fingerprint,
+            (RoiCircle(0, 0, 0.5, 0.5, 0.2),),
+        ),
+    )
+
+    archive = RunArchive(
+        tmp_path,
+        schedule(analysis=profile.to_dict()),
+        "a" * 64,
+        [NOW],
+    )
+
+    assert AnalysisConfig.load(
+        archive.analysis_dir / "analysis-config.json"
+    ) == config
+    assert RoiDefinition.load(
+        archive.analysis_dir / "roi-definition.json"
+    ) == profile.roi
 
 
 def test_capture_ledger_reconstructs_latest_results_and_summary(tmp_path):

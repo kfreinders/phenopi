@@ -35,6 +35,7 @@ class PhenopiSettings:
     schedule_draft_path: Path
     scheduler_heartbeat_path: Path
     scheduler_command_path: Path
+    analysis_profile_path: Path
     capture_script: Path
     timezone: ZoneInfo
     gui_host: str
@@ -92,6 +93,7 @@ def load_settings(
         schedule_draft_path=runtime_dir / "schedule-draft.json",
         scheduler_heartbeat_path=runtime_dir / "scheduler-heartbeat.json",
         scheduler_command_path=runtime_dir / "scheduler-command.json",
+        analysis_profile_path=runtime_dir / "analysis-profile.json",
         capture_script=project_root / "scripts" / "capture" / "capture_once.py",
         timezone=timezone,
         gui_host=env.get("PHENOPI_GUI_HOST", "0.0.0.0"),
@@ -110,6 +112,7 @@ DEFAULT_SCHEDULE_PATH = SETTINGS.schedule_path
 SCHEDULE_DRAFT_PATH = SETTINGS.schedule_draft_path
 SCHEDULER_HEARTBEAT_PATH = SETTINGS.scheduler_heartbeat_path
 SCHEDULER_COMMAND_PATH = SETTINGS.scheduler_command_path
+ANALYSIS_PROFILE_PATH = SETTINGS.analysis_profile_path
 CAPTURE_SCRIPT_PATH = SETTINGS.capture_script
 TIMEZONE = SETTINGS.timezone
 GUI_HOST = SETTINGS.gui_host

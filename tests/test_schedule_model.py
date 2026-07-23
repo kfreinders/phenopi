@@ -4,6 +4,9 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from scripts.analysis.config import AnalysisConfig
+from scripts.analysis.profile import AnalysisProfile
+from scripts.analysis.roi import RoiCircle, RoiDefinition
 from scripts.scheduling.schedule import RunMetadata, Schedule
 
 
@@ -70,3 +73,27 @@ def test_run_metadata_round_trips_as_typed_data():
 
     assert run.to_dict() == value
     assert Schedule.from_dict(schedule_data(run=value)).run == run
+
+
+def test_schedule_preserves_optional_analysis_profile():
+    config = AnalysisConfig(roi_rows=1, roi_cols=1)
+    profile = AnalysisProfile(
+        1,
+        config,
+        RoiDefinition(
+            2,
+            1,
+            1,
+            100,
+            100,
+            config.fingerprint,
+            (RoiCircle(0, 0, 0.5, 0.5, 0.2),),
+        ),
+    )
+
+    schedule = Schedule.from_dict(
+        schedule_data(analysis=profile.to_dict())
+    )
+
+    assert schedule.analysis == profile
+    assert Schedule.from_json(schedule.to_json()) == schedule
