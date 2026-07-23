@@ -1,9 +1,10 @@
 import argparse
 from concurrent.futures import ProcessPoolExecutor, as_completed
-import json
+from dataclasses import dataclass
 import os
 from pathlib import Path
 import logging
+import tempfile
 
 import pandas as pd
 from plantcv import plantcv as pcv  # type: ignore[import-not-found]
@@ -24,6 +25,17 @@ from .measurements import (
 )
 
 
+@dataclass(frozen=True)
+class ImageAnalysisResult:
+    """Outputs produced by one completed image analysis."""
+
+    image_path: Path
+    traits_path: Path
+    overlay_path: Path
+    config_fingerprint: str
+    traits: pd.DataFrame
+
+
 def setup_logging(verbose: bool = False) -> None:
     root_level = logging.INFO
     script_level = logging.DEBUG if verbose else logging.INFO
@@ -42,17 +54,22 @@ def _analyze_image_worker(
     output_dir: Path,
     cfg: AnalysisConfig,
 ) -> pd.DataFrame:
-    df = analyze_image(image_path, output_dir, cfg)
-    df.insert(0, "image", image_path.name)
-    return df
+    result = analyze_image(image_path, output_dir, cfg)
+    traits = result.traits.copy()
+    traits.insert(0, "image", image_path.name)
+    return traits
 
 
 def analyze_image(
     image_path: Path, output_dir: Path, cfg: AnalysisConfig
-) -> pd.DataFrame:
+) -> ImageAnalysisResult:
     logger = logging.getLogger(__name__)
 
+    if not image_path.is_file():
+        raise ValueError(f"Image does not exist or is not a file: {image_path}")
+
     logger.info("Starting analysis: %s", image_path)
+    output_dir.mkdir(parents=True, exist_ok=True)
     configure_plantcv(cfg, output_dir)
 
     logger.debug("Clearing previous PlantCV outputs")
@@ -85,27 +102,57 @@ def analyze_image(
     logger.info("Detected %d plant labels", num_plants)
 
     stem = image_path.stem
+    overlay_path = output_dir / f"{stem}_roi_overlay.png"
 
     logger.info("Saving ROI overlay")
-    save_roi_circle_overlay(
-        img_crop,
-        grid_cells,
-        output_dir / f"{stem}_roi_overlay.png",
-    )
+    with tempfile.NamedTemporaryFile(
+        prefix=f".{stem}_roi_overlay.",
+        suffix=".png",
+        dir=output_dir,
+        delete=False,
+    ) as temporary_overlay:
+        temporary_overlay_path = Path(temporary_overlay.name)
+    temporary_csv_path: Path | None = None
+    try:
+        save_roi_circle_overlay(
+            img_crop,
+            grid_cells,
+            temporary_overlay_path,
+        )
 
-    logger.info("Measuring plant shape traits")
-    analyze_shape(img_crop, labeled_mask, num_plants)
-    df = observations_to_dataframe()
-    df = add_metric_units(df, cfg)
+        logger.info("Measuring plant shape traits")
+        analyze_shape(img_crop, labeled_mask, num_plants)
+        df = observations_to_dataframe()
+        df = add_metric_units(df, cfg)
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    csv_path = output_dir / f"{stem}_traits.csv"
-    logger.info("Writing traits CSV: %s", csv_path)
-    df.to_csv(csv_path, index=False)
+        csv_path = output_dir / f"{stem}_traits.csv"
+        logger.info("Writing traits CSV: %s", csv_path)
+        with tempfile.NamedTemporaryFile(
+            prefix=f".{stem}_traits.",
+            suffix=".csv",
+            dir=output_dir,
+            delete=False,
+        ) as temporary_csv:
+            temporary_csv_path = Path(temporary_csv.name)
+        df.to_csv(temporary_csv_path, index=False)
+
+        temporary_overlay_path.replace(overlay_path)
+        temporary_csv_path.replace(csv_path)
+    except BaseException:
+        temporary_overlay_path.unlink(missing_ok=True)
+        if temporary_csv_path is not None:
+            temporary_csv_path.unlink(missing_ok=True)
+        raise
 
     logger.info("Finished analysis: %s", image_path)
 
-    return df
+    return ImageAnalysisResult(
+        image_path=image_path,
+        traits_path=csv_path,
+        overlay_path=overlay_path,
+        config_fingerprint=cfg.fingerprint,
+        traits=df,
+    )
 
 
 def analyze_images(
@@ -303,8 +350,7 @@ def main() -> None:
     config_path = args.outdir / "analysis_config.json"
     logger.info("Writing analysis config: %s", config_path)
 
-    with config_path.open("w") as f:
-        json.dump(cfg.__dict__, f, indent=2)
+    cfg.save(config_path)
 
     logger.info(f"Using {args.workers} workers")
 
