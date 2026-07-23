@@ -196,5 +196,5 @@ def test_schedule_api_routes_and_react_workflow_are_complete():
     assert "ScheduleReviewPage" in app_source
     assert "ActivationPage" in app_source
     assert "schedule?.hash === expected" in activation
-    assert "setCountdown(3)" in activation
+    assert "setCountdown(5)" in activation
     assert "Create another schedule" not in activation
