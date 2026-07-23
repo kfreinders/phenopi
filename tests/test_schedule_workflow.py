@@ -66,6 +66,16 @@ def test_configure_api_and_react_form_expose_safe_defaults(tmp_path, monkeypatch
     assert "Continue to review" in source
     assert 'max="3650"' in source
     assert "replicate-interval-control" in source
+    assert "Start date (YYYY/MM/DD)" in source
+    assert 'label="Start time"' in source
+    assert "(24h)" not in source
+    assert 'type="date"' not in source
+    assert 'type="time"' not in source
+    assert source.index("<legend>Experiment</legend>") < source.index("<legend>Schedule mode</legend>")
+    assert source.count("<legend>Schedule mode</legend>") == 1
+    assert "<legend>Every n minutes</legend>" not in source
+    assert "<legend>Fixed duration</legend>" not in source
+    assert "<legend>Centered window</legend>" not in source
 
 
 def test_configure_api_discards_an_expired_draft(tmp_path, monkeypatch):
@@ -215,6 +225,7 @@ def test_schedule_api_routes_and_react_workflow_are_complete():
     app_source = (FRONTEND / "App.jsx").read_text()
     activation = (FRONTEND / "pages" / "ActivationPage.jsx").read_text()
     scheduler = (FRONTEND / "pages" / "SchedulerPage.jsx").read_text()
+    components = (FRONTEND / "components.jsx").read_text()
     assert "ScheduleBuilderPage" in app_source
     assert "ScheduleReviewPage" in app_source
     assert "ActivationPage" in app_source
@@ -229,3 +240,11 @@ def test_schedule_api_routes_and_react_workflow_are_complete():
     assert "capture-result-bar" in scheduler
     assert "Result pending" in scheduler
     assert 'role="img"' in scheduler
+    assert "day-strip" not in components
+    assert "Scheduled experiment days" not in components
+    assert "preview-overview" in components
+    assert "Experiment dates" in components
+    assert "Capture volume" in components
+    assert "Technical replicates" not in components
+    assert "timeline-replicates" in components
+    assert "buildTimelineTicks" in components

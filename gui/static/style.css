@@ -151,6 +151,11 @@ textarea { resize: vertical; }
   align-items: center;
   gap: 0.5rem;
 }
+.schedule-mode-fields {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
 
 .actions {
   display: flex;

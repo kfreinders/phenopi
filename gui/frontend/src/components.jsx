@@ -23,34 +23,49 @@ export function ErrorNotice({ error }) {
 }
 
 export function SchedulePreview({ preview }) {
+  const timelineTicks = buildTimelineTicks(preview.first_time, preview.last_time);
+  const timelinePoints = condenseTimelinePoints(preview.timeline_points);
+  const timelineCondensed = timelinePoints.length < preview.timeline_points.length;
+  const extraReplicates = Math.max(preview.replicates - 1, 0);
+  const shownReplicates = Math.min(extraReplicates, 8);
   return <section className="preview-panel">
-    <div className="summary-grid">
-      {[
-        [preview.daily_time_points, "Daily time points"],
-        [preview.replicates, "Replicates per time point"],
-        [preview.daily_captures, "Daily captures"],
-        [preview.total_captures, "Total captures"],
-        [preview.first_time, "First time"],
-        [preview.last_time, "Last time"],
-      ].map(([value, label]) => <div className="summary-card" key={label}><strong>{value}</strong><span>{label}</span></div>)}
+    <div className="preview-overview">
+      <article className="preview-overview-card"><span>Experiment dates</span><div className="preview-range"><strong>{preview.start_date.replaceAll("-", "/")}</strong><i aria-hidden="true">→</i><strong>{preview.end_date.replaceAll("-", "/")}</strong></div><small>{preview.num_days} day{preview.num_days === 1 ? "" : "s"}</small></article>
+      <article className="preview-overview-card"><span>Daily imaging window</span><div className="preview-range"><strong>{preview.first_time}</strong><i aria-hidden="true">→</i><strong>{preview.last_time}</strong></div><small>{preview.daily_time_points} time point{preview.daily_time_points === 1 ? "" : "s"} per day</small></article>
+      <article className="preview-overview-card"><span>Capture volume</span><strong className="preview-total">{preview.total_captures}</strong><small>{preview.daily_captures} per day · {preview.replicates} per time point</small></article>
     </div>
     <div className="visual-preview-grid">
       <section className="schedule-graphic-card">
-        <div className="graphic-card-header"><h3>Daily imaging window</h3><p>{preview.summary_sentence}</p></div>
+        <div className="graphic-card-header"><h3>Daily imaging window</h3><p>{preview.summary_sentence}</p>{timelineCondensed && <small>Markers are condensed for readability; all {preview.daily_time_points} time points remain scheduled.</small>}</div>
         <div className="timeline-shell" aria-label="Daily capture timeline">
-          <div className="timeline-axis">{preview.timeline_points.map(point => <span className="timeline-point" style={{ left: `${point.percent}%` }} title={point.time} key={point.time} />)}</div>
-          <div className="timeline-labels"><span>{preview.first_time}</span><span>{preview.last_time}</span></div>
+          <div className={`timeline-axis${timelineCondensed ? " timeline-axis--condensed" : ""}`}>
+            {timelineTicks.map(tick => <span className="timeline-tick" style={{ left: `${tick.percent}%`, "--timeline-delay": `${100 + tick.percent * 5}ms` }} key={tick.time} />)}
+            {timelinePoints.map(point => <span className="timeline-capture" style={{ left: `${point.percent}%`, "--timeline-delay": `${100 + point.percent * 5}ms` }} title={`${point.time}: ${preview.replicates} capture${preview.replicates === 1 ? "" : "s"}`} key={point.time}>{extraReplicates > 0 && <span className="timeline-replicates" aria-label={`${extraReplicates} additional replicate${extraReplicates === 1 ? "" : "s"} at ${point.time}`}>{Array.from({ length: shownReplicates }, (_, index) => <i key={index} />)}{extraReplicates > shownReplicates && <small>+{extraReplicates - shownReplicates}</small>}</span>}<i className="timeline-point" /></span>)}
+          </div>
+          <div className="timeline-scale">{timelineTicks.map(tick => <span style={{ left: `${tick.percent}%` }} key={tick.time}>{tick.time}</span>)}</div>
         </div>
-        <div className="day-strip" aria-label="Scheduled experiment days">{Array.from({ length: preview.num_days }, (_, index) => <span className="day-pill" key={index}>Day {index + 1}</span>)}</div>
-      </section>
-      <section className="schedule-graphic-card">
-        <div className="graphic-card-header"><h3>Technical replicates</h3><p>Each time point triggers {preview.replicates} capture{preview.replicates === 1 ? "" : "s"}, spaced {preview.replicate_interval_seconds} seconds apart.</p></div>
-        <div className="replicate-burst"><div className="replicate-time">{preview.first_time}</div><div className="replicate-dots">
-          {preview.replicate_offsets.map(item => <div className="replicate-dot-block" key={item.number}><span className="replicate-dot">{item.number}</span><small>+{item.offset_seconds} s</small></div>)}
-        </div></div>
       </section>
     </div>
   </section>;
+}
+
+export function buildTimelineTicks(first, last) {
+  const toMinutes = value => { const [hours, minutes] = value.split(":").map(Number); return hours * 60 + minutes; };
+  const format = value => `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+  const start = toMinutes(first); const end = toMinutes(last); const span = Math.max(end - start, 0);
+  if (!span) return [{ time: first, percent: 0 }];
+  const intervals = [1, 2, 5, 10, 15, 30, 60, 120, 180, 240, 360, 720];
+  const interval = intervals.find(value => value >= span / 6) ?? 720;
+  const values = [start];
+  for (let value = Math.ceil((start + 1) / interval) * interval; value < end; value += interval) values.push(value);
+  values.push(end);
+  return values.map(value => ({ time: format(value), percent: ((value - start) / span) * 100 }));
+}
+
+export function condenseTimelinePoints(points, limit = 40) {
+  if (points.length <= limit) return points;
+  const indexes = Array.from({ length: limit }, (_, index) => Math.round(index * (points.length - 1) / (limit - 1)));
+  return indexes.map(index => points[index]);
 }
 
 export function Navigation() {
