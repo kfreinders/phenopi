@@ -23,6 +23,57 @@ class RoiCircle:
 
 
 @dataclass(frozen=True)
+class AnalysisCrop:
+    """Normalized analysis-area bounds in the rotated source image."""
+
+    x: float = 0.0
+    y: float = 0.0
+    width: float = 1.0
+    height: float = 1.0
+
+    def __post_init__(self) -> None:
+        values = (self.x, self.y, self.width, self.height)
+        if not all(math.isfinite(value) for value in values):
+            raise ValueError("Analysis area must use finite coordinates.")
+        if (
+            self.x < 0
+            or self.y < 0
+            or self.width <= 0
+            or self.height <= 0
+            or self.x + self.width > 1.000001
+            or self.y + self.height > 1.000001
+        ):
+            raise ValueError("Analysis area must fit within the image.")
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> AnalysisCrop:
+        try:
+            return cls(
+                x=float(value["x"]),
+                y=float(value["y"]),
+                width=float(value["width"]),
+                height=float(value["height"]),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("Analysis area is invalid.") from exc
+
+    def pixel_bounds(
+        self, image_shape: tuple[int, ...]
+    ) -> tuple[int, int, int, int]:
+        image_height, image_width = image_shape[:2]
+        x0 = min(image_width - 1, round(self.x * image_width))
+        y0 = min(image_height - 1, round(self.y * image_height))
+        x1 = min(
+            image_width, max(x0 + 1, round((self.x + self.width) * image_width))
+        )
+        y1 = min(
+            image_height,
+            max(y0 + 1, round((self.y + self.height) * image_height)),
+        )
+        return x0, y0, x1, y1
+
+
+@dataclass(frozen=True)
 class RoiDefinition:
     """A resolution-independent ROI grid calibrated from one run image."""
 
@@ -33,9 +84,10 @@ class RoiDefinition:
     source_height: int
     config_fingerprint: str
     circles: tuple[RoiCircle, ...]
+    analysis_crop: AnalysisCrop = AnalysisCrop()
 
     def __post_init__(self) -> None:
-        if self.schema_version != 1:
+        if self.schema_version not in {1, 2}:
             raise ValueError("Unsupported ROI definition version.")
         if self.rows <= 0 or self.columns <= 0:
             raise ValueError("ROI rows and columns must be positive.")
@@ -77,6 +129,7 @@ class RoiDefinition:
             "source_height": self.source_height,
             "config_fingerprint": self.config_fingerprint,
             "circles": [asdict(circle) for circle in self.circles],
+            "analysis_crop": asdict(self.analysis_crop),
         }
 
     @classmethod
@@ -100,6 +153,12 @@ class RoiDefinition:
                 source_height=int(value["source_height"]),
                 config_fingerprint=str(value["config_fingerprint"]),
                 circles=circles,
+                analysis_crop=AnalysisCrop.from_dict(
+                    value.get(
+                        "analysis_crop",
+                        {"x": 0, "y": 0, "width": 1, "height": 1},
+                    )
+                ),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise ValueError("ROI definition is invalid.") from exc
@@ -149,6 +208,16 @@ class RoiDefinition:
 
     def draw_overlay(self, image: np.ndarray) -> np.ndarray:
         overlay = image.copy()
+        crop_x0, crop_y0, crop_x1, crop_y1 = self.analysis_crop.pixel_bounds(
+            image.shape
+        )
+        cv2.rectangle(
+            overlay,
+            (crop_x0, crop_y0),
+            (crop_x1 - 1, crop_y1 - 1),
+            (255, 255, 255),
+            max(2, round(min(image.shape[:2]) / 600)),
+        )
         for label_id, (center_x, center_y, radius) in enumerate(
             self.pixel_circles(image.shape), start=1
         ):
@@ -176,17 +245,29 @@ def detect_roi_definition(
     image: np.ndarray,
     mask: np.ndarray,
     config: AnalysisConfig,
+    analysis_crop: AnalysisCrop | None = None,
 ) -> RoiDefinition:
     """Use PlantCV once to locate the ROI grid in a calibration image."""
     from plantcv import plantcv as pcv  # type: ignore[import-not-found]
 
-    calibration_mask = remove_square_calibration_components(mask)
-    objects = pcv.roi.auto_grid(
-        mask=calibration_mask,
-        nrows=config.roi_rows,
-        ncols=config.roi_cols,
-        img=image,
+    crop = analysis_crop or AnalysisCrop()
+    x0, y0, x1, y1 = crop.pixel_bounds(image.shape)
+    calibration_image = image[y0:y1, x0:x1]
+    calibration_mask = remove_square_calibration_components(
+        mask[y0:y1, x0:x1]
     )
+    try:
+        objects = pcv.roi.auto_grid(
+            mask=calibration_mask,
+            nrows=config.roi_rows,
+            ncols=config.roi_cols,
+            img=calibration_image,
+        )
+    except (RuntimeError, ValueError) as exc:
+        raise ValueError(
+            "PlantCV could not detect the requested ROI grid inside the "
+            "analysis area. Adjust the crop, segmentation, rows, or columns."
+        ) from exc
     detected: list[tuple[float, float, float]] = []
     for contours in objects.contours:
         contour = np.asarray(contours[0])
@@ -215,20 +296,21 @@ def detect_roi_definition(
         RoiCircle(
             row=index // config.roi_cols,
             column=index % config.roi_cols,
-            center_x=center_x / width,
-            center_y=center_y / height,
+            center_x=(x0 + center_x) / width,
+            center_y=(y0 + center_y) / height,
             radius=radius / radius_scale,
         )
         for index, (center_x, center_y, radius) in enumerate(ordered)
     )
     return RoiDefinition(
-        schema_version=1,
+        schema_version=2,
         rows=config.roi_rows,
         columns=config.roi_cols,
         source_width=width,
         source_height=height,
         config_fingerprint=config.fingerprint,
         circles=circles,
+        analysis_crop=crop,
     )
 
 

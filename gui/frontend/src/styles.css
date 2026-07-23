@@ -74,6 +74,16 @@
 .analysis-stage--roi { grid-column: 1 / -1; }
 .analysis-stage--roi .analysis-stage-image { aspect-ratio: 16 / 7; }
 .analysis-roi-ready { padding: .3rem .55rem; border-radius: 999px; color: #067647; background: #dcfae6; font-size: .74rem; font-weight: 750; }
+.analysis-stage--crop { grid-column: 1 / -1; }
+.analysis-crop-reset { padding: .45rem .65rem; }
+.analysis-crop-canvas { position: relative; overflow: hidden; background: #111827; cursor: crosshair; touch-action: none; user-select: none; line-height: 0; }
+.analysis-crop-canvas > img { display: block; width: 100%; height: auto; pointer-events: none; }
+.analysis-crop-selection { position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 9999px rgb(9 20 38 / 52%), 0 0 0 1px rgb(15 95 185 / 80%); pointer-events: none; }
+.analysis-crop-selection i { position: absolute; width: .7rem; height: .7rem; border: 2px solid #fff; border-radius: 50%; background: var(--blue); box-shadow: 0 1px 3px rgb(0 0 0 / 35%); }
+.analysis-crop-selection i:nth-child(1) { top: 0; left: 0; transform: translate(-50%, -50%); }
+.analysis-crop-selection i:nth-child(2) { top: 0; right: 0; transform: translate(50%, -50%); }
+.analysis-crop-selection i:nth-child(3) { right: 0; bottom: 0; transform: translate(50%, 50%); }
+.analysis-crop-selection i:nth-child(4) { bottom: 0; left: 0; transform: translate(-50%, 50%); }
 @media (max-width: 900px) {
   .analysis-setup-layout { grid-template-columns: 1fr; }
   .analysis-controls { position: static; }

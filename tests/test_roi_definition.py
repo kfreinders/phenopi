@@ -7,6 +7,7 @@ import pytest
 
 from scripts.analysis.config import AnalysisConfig
 from scripts.analysis.roi import (
+    AnalysisCrop,
     RoiCircle,
     RoiDefinition,
     detect_roi_definition,
@@ -79,6 +80,42 @@ def test_plantcv_grid_is_normalized_and_ordered(monkeypatch):
 
     assert roi.circles[0].center_x == pytest.approx(0.25)
     assert roi.circles[1].center_x == pytest.approx(0.75)
+
+
+def test_detection_maps_crop_local_grid_back_to_full_image(monkeypatch):
+    config = AnalysisConfig(roi_rows=1, roi_cols=2)
+
+    def circle(center):
+        points = cv2.ellipse2Poly(center, (10, 10), 0, 0, 360, 30)
+        return [points.reshape(-1, 1, 2)]
+
+    received = {}
+
+    def auto_grid(**kwargs):
+        received.update(kwargs)
+        return SimpleNamespace(
+            contours=[circle((25, 50)), circle((75, 50))]
+        )
+
+    package = ModuleType("plantcv")
+    package.plantcv = SimpleNamespace(
+        roi=SimpleNamespace(auto_grid=auto_grid)
+    )
+    monkeypatch.setitem(sys.modules, "plantcv", package)
+    crop = AnalysisCrop(x=0.25, y=0, width=0.5, height=1)
+
+    roi = detect_roi_definition(
+        np.zeros((100, 200, 3), dtype=np.uint8),
+        np.zeros((100, 200), dtype=np.uint8),
+        config,
+        crop,
+    )
+
+    assert received["img"].shape == (100, 100, 3)
+    assert roi.schema_version == 2
+    assert roi.analysis_crop == crop
+    assert roi.circles[0].center_x == pytest.approx(0.375)
+    assert roi.circles[1].center_x == pytest.approx(0.625)
 
 
 def test_roi_definition_rejects_incomplete_grid():

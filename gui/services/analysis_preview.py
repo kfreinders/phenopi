@@ -10,7 +10,7 @@ from scripts.analysis.preview import (
     generate_analysis_preview,
     prepare_analysis_image,
 )
-from scripts.analysis.roi import detect_roi_definition
+from scripts.analysis.roi import AnalysisCrop, detect_roi_definition
 
 
 MAX_CALIBRATION_IMAGE_BYTES = 10_000_000
@@ -32,12 +32,19 @@ def build_analysis_preview(image_data: str, config_data: dict) -> dict:
     }
 
 
-def build_roi_preview(image_data: str, config_data: dict) -> dict:
+def build_roi_preview(
+    image_data: str,
+    config_data: dict,
+    crop_data: dict,
+) -> dict:
     image_bytes = _decode_image_data(image_data)
     config = AnalysisConfig.from_dict(config_data)
     prepared = prepare_analysis_image(image_bytes, config)
     definition = detect_roi_definition(
-        prepared.image, prepared.mask, config
+        prepared.image,
+        prepared.mask,
+        config,
+        AnalysisCrop.from_dict(crop_data),
     )
     overlay = fit_for_display(definition.draw_overlay(prepared.image), 960)
     return {

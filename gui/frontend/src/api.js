@@ -30,7 +30,7 @@ export const previewAnalysis = (imageData, config, signal) => api(
   "/api/analysis/preview",
   { method: "POST", body: JSON.stringify({ image_data: imageData, config }), signal },
 );
-export const detectAnalysisRoi = (imageData, config) => api(
+export const detectAnalysisRoi = (imageData, config, analysisCrop) => api(
   "/api/analysis/roi",
-  { method: "POST", body: JSON.stringify({ image_data: imageData, config }) },
+  { method: "POST", body: JSON.stringify({ image_data: imageData, config, analysis_crop: analysisCrop }) },
 );

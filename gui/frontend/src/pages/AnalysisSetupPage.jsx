@@ -3,7 +3,6 @@ import { ErrorNotice, Loading } from "../components";
 import { detectAnalysisRoi, getAnalysisConfig, previewAnalysis } from "../api";
 
 const stageLabels = {
-  original: ["Input", "Rotation and framing"],
   channel: ["LAB channel", "Values used for thresholding"],
   mask: ["Plant mask", "White pixels are selected"],
   overlay: ["Segmentation overlay", "Selected plant material"],
@@ -15,6 +14,7 @@ export function AnalysisSetupPage() {
   const [fileName, setFileName] = useState("");
   const [stages, setStages] = useState(null);
   const [roi, setRoi] = useState(null);
+  const [analysisCrop, setAnalysisCrop] = useState({ x: 0, y: 0, width: 1, height: 1 });
   const [detectingRoi, setDetectingRoi] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -62,6 +62,7 @@ export function AnalysisSetupPage() {
       setImageData(reader.result);
       setStages(null);
       setRoi(null);
+      setAnalysisCrop({ x: 0, y: 0, width: 1, height: 1 });
       setError(null);
     };
     reader.onerror = () => setError(new Error("The calibration image could not be read."));
@@ -70,13 +71,18 @@ export function AnalysisSetupPage() {
 
   const update = (key, value) => {
     setRoi(null);
+    if (key === "rotate_angle") setAnalysisCrop({ x: 0, y: 0, width: 1, height: 1 });
     setConfig(current => ({ ...current, [key]: value }));
+  };
+  const updateCrop = value => {
+    setRoi(null);
+    setAnalysisCrop(value);
   };
   const detectRoi = async () => {
     setDetectingRoi(true);
     setError(null);
     try {
-      const result = await detectAnalysisRoi(imageData, config);
+      const result = await detectAnalysisRoi(imageData, config, analysisCrop);
       setRoi(result);
     } catch (reason) {
       setError(reason);
@@ -113,6 +119,7 @@ export function AnalysisSetupPage() {
         </fieldset>
         <fieldset disabled={!imageData}>
           <legend>ROI grid</legend>
+          <p className="analysis-roi-note">Draw the analysis area around the tray first, excluding labels, calibration cards and surrounding equipment.</p>
           <div className="analysis-grid-size">
             <label>Rows<input type="number" min="1" max="30" value={config.roi_rows} onChange={event => update("roi_rows", Number(event.target.value))} /></label>
             <label>Columns<input type="number" min="1" max="30" value={config.roi_cols} onChange={event => update("roi_cols", Number(event.target.value))} /></label>
@@ -125,6 +132,10 @@ export function AnalysisSetupPage() {
         {!imageData && <div className="card analysis-empty"><span aria-hidden="true">◫</span><h3>Select a calibration image</h3><p>The segmentation stages will appear here as you adjust the controls.</p></div>}
         {imageData && !stages && <Loading label="Generating analysis preview" />}
         {stages && <div className="analysis-stage-grid">
+          <article className="card analysis-stage analysis-stage--crop">
+            <header><div><h3>Analysis area</h3><p>Drag across the image to isolate the tray</p></div><button type="button" className="text-button analysis-crop-reset" onClick={() => updateCrop({ x: 0, y: 0, width: 1, height: 1 })}>Reset</button></header>
+            <CropSelector image={stages.original} crop={analysisCrop} onChange={updateCrop} />
+          </article>
           {Object.entries(stageLabels).map(([key, [title, description]]) => <article className="card analysis-stage" key={key}>
             <header><div><h3>{title}</h3><p>{description}</p></div>{loading && key === "overlay" && <span className="analysis-updating">Updating…</span>}</header>
             <div className="analysis-stage-image"><img src={stages[key]} alt={`${title} analysis preview`} /></div>
@@ -143,4 +154,42 @@ function RangeControl({ label, value, min, max, step = 1, suffix = "", onChange 
   return <label className="analysis-control"><span>{label}<output>{value}{suffix}</output></span>
     <input type="range" value={value} min={min} max={max} step={step} onChange={event => onChange(Number(event.target.value))} />
   </label>;
+}
+
+function CropSelector({ image, crop, onChange }) {
+  const element = useRef(null);
+  const drag = useRef(null);
+  const position = event => {
+    const bounds = element.current.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)),
+      y: Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height)),
+    };
+  };
+  const rectangle = (start, end) => ({
+    x: Math.min(start.x, end.x),
+    y: Math.min(start.y, end.y),
+    width: Math.abs(end.x - start.x),
+    height: Math.abs(end.y - start.y),
+  });
+  const start = event => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const point = position(event);
+    drag.current = { point, previous: crop };
+  };
+  const move = event => {
+    if (!drag.current) return;
+    onChange(rectangle(drag.current.point, position(event)));
+  };
+  const finish = event => {
+    if (!drag.current) return;
+    const next = rectangle(drag.current.point, position(event));
+    const previous = drag.current.previous;
+    drag.current = null;
+    onChange(next.width >= 0.02 && next.height >= 0.02 ? next : previous);
+  };
+  return <div ref={element} className="analysis-crop-canvas" onPointerDown={start} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish}>
+    <img src={image} alt="Calibration image for selecting the analysis area" draggable={false} />
+    <span className="analysis-crop-selection" style={{ left: `${crop.x * 100}%`, top: `${crop.y * 100}%`, width: `${crop.width * 100}%`, height: `${crop.height * 100}%` }}><i /><i /><i /><i /></span>
+  </div>;
 }
