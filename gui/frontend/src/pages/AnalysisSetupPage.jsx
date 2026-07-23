@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ErrorNotice, Loading, WorkflowSteps } from "../components";
 import { attachDraftAnalysis, detectAnalysisRoi, getAnalysisConfig, previewAnalysis, saveAnalysisProfile } from "../api";
 
@@ -143,7 +143,7 @@ export function AnalysisSetupPage() {
 
   return <section className="analysis-page">
     {scheduleWorkflow && <WorkflowSteps current={2} analysisEnabled />}
-    <header className="react-page-heading"><h2>{scheduleWorkflow ? "Calibrate canopy analysis" : "Analysis setup"}</h2><p>Tune plant segmentation using a representative calibration image.</p></header>
+    <header className="react-page-heading analysis-page-heading"><div><h2>{scheduleWorkflow ? "Calibrate canopy analysis" : "Analysis setup"}</h2><p>Tune plant segmentation using a representative calibration image.</p></div>{scheduleWorkflow && <Link className="button-link secondary" to="/schedule/edit"><span aria-hidden="true">←</span> Back to configure</Link>}</header>
     <ErrorNotice error={error} />
     {scheduleWorkflow && <section className={`card analysis-workflow-intro${saved ? " analysis-workflow-intro--saved" : ""}`}><div><span aria-hidden="true">{saved ? "✓" : "2"}</span><div><h3>{saved ? "A saved calibration is available" : "Calibration required"}</h3><p>{saved ? "Use it for this experiment if the camera, tray and lighting setup have not changed, or create a new calibration below." : "Canopy measurements cannot start until segmentation and the ROI grid have been calibrated."}</p></div></div>{saved && <button type="button" onClick={useSavedProfile} disabled={saving}>{saving ? "Attaching…" : "Use saved calibration"}</button>}</section>}
     <div className="analysis-setup-layout">

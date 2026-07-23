@@ -9,6 +9,8 @@
 .react-page-heading { margin-bottom: 1rem; }
 .react-page-heading h2 { margin: .2rem 0; }
 .react-page-heading p { margin: 0; color: var(--muted); }
+.analysis-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.analysis-page-heading > div { min-width: 0; }
 .analysis-choice { margin: 1.2rem 0 .15rem; padding-top: 1.2rem; border-top: 1px solid var(--line); }
 .analysis-choice > div:first-child p { margin: .25rem 0 .8rem; color: var(--muted); font-size: .86rem; }
 .analysis-choice-options { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
@@ -127,6 +129,7 @@
   .analysis-controls { position: static; }
 }
 @media (max-width: 650px) {
+  .analysis-page-heading { align-items: flex-start; flex-direction: column; }
   .analysis-choice-options { grid-template-columns: 1fr; }
   .analysis-workflow-intro, .review-analysis-status { align-items: flex-start; flex-direction: column; }
   .analysis-stage-grid { grid-template-columns: 1fr; }
