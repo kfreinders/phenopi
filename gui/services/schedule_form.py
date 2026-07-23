@@ -3,11 +3,13 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class ScheduleFormData(BaseModel):
     """Typed representation of the schedule builder's submitted fields."""
+
+    model_config = ConfigDict(extra="forbid")
 
     mode: str
     experiment_name: str

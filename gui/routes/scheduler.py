@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from gui.config import (
     SCHEDULE_DRAFT_PATH,
@@ -23,6 +23,8 @@ router = APIRouter()
 
 
 class CancellationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     schedule_hash: str
 
 
@@ -67,8 +69,13 @@ def cancel_scheduled_experiment(request: CancellationRequest) -> dict:
         )
     try:
         request_schedule_cancellation(SCHEDULER_COMMAND_PATH, request.schedule_hash)
-    except (OSError, ValueError) as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="The cancellation request could not be saved.",
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"accepted": True, "schedule_hash": request.schedule_hash}
 
 

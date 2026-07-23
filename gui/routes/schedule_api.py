@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from gui.config import (
     DEFAULT_SCHEDULE_PATH,
@@ -26,6 +26,8 @@ router = APIRouter(prefix="/api/schedule", tags=["schedule"])
 
 
 class ActivationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     draft_hash: str
     confirm_active_replacement: bool = False
 
@@ -44,7 +46,12 @@ def configure_schedule(edit: bool = False) -> dict:
 def create_schedule_draft(form: ScheduleFormData) -> dict:
     try:
         persist_schedule_draft(form, SCHEDULE_DRAFT_PATH)
-    except (OSError, ValueError) as exc:
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="The schedule draft could not be saved.",
+        ) from exc
+    except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return get_schedule_draft()
 
@@ -104,7 +111,12 @@ def activate_schedule(request: ActivationRequest) -> dict:
             draft_path=SCHEDULE_DRAFT_PATH,
             schedule_path=DEFAULT_SCHEDULE_PATH,
         )
-    except (OSError, ValueError) as exc:
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="The schedule could not be activated.",
+        ) from exc
+    except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return {"schedule_hash": activated_hash, "already_active": False}
 
