@@ -125,7 +125,7 @@ def test_schedule_preview_caps_total_capture_count():
         build_schedule_preview(
             **{
                 **BASE_ARGUMENTS,
-                "num_days": 3650,
+                "num_days": 365,
                 "replicates": 100,
             },
             mode="every",

@@ -64,7 +64,7 @@ def test_configure_api_and_react_form_expose_safe_defaults(tmp_path, monkeypatch
     assert payload["form"]["replicate_interval_seconds"] == 0
     assert payload["minimum_start_date"] == date.today().isoformat()
     assert "Continue to review" in source
-    assert 'max="3650"' in source
+    assert 'max="365"' in source
     assert "replicate-interval-control" in source
     assert "Start date (YYYY/MM/DD)" in source
     assert 'label="Start time"' in source
