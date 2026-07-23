@@ -240,6 +240,7 @@ function MaskEditor({ image, strokes, setStrokes, radius, setRadius }) {
   const surface = useRef(null);
   const canvas = useRef(null);
   const drawing = useRef(false);
+  const [cursor, setCursor] = useState(null);
 
   useEffect(() => {
     const redraw = () => {
@@ -273,12 +274,29 @@ function MaskEditor({ image, strokes, setStrokes, radius, setRadius }) {
           context.fill();
         }
       }
+      if (cursor) {
+        const brush = radius * Math.min(bounds.width, bounds.height);
+        context.beginPath();
+        context.arc(
+          cursor.x * bounds.width,
+          cursor.y * bounds.height,
+          brush,
+          0,
+          Math.PI * 2,
+        );
+        context.strokeStyle = "#fff";
+        context.lineWidth = 2;
+        context.shadowColor = "rgba(0, 0, 0, .8)";
+        context.shadowBlur = 3;
+        context.stroke();
+        context.shadowBlur = 0;
+      }
     };
     redraw();
     const observer = new ResizeObserver(redraw);
     if (surface.current) observer.observe(surface.current);
     return () => observer.disconnect();
-  }, [strokes, image]);
+  }, [strokes, image, cursor, radius]);
 
   const point = event => {
     const bounds = surface.current.getBoundingClientRect();
@@ -290,11 +308,14 @@ function MaskEditor({ image, strokes, setStrokes, radius, setRadius }) {
   const start = event => {
     drawing.current = true;
     event.currentTarget.setPointerCapture(event.pointerId);
-    setStrokes(current => [...current, { radius, points: [point(event)] }]);
+    const nextPoint = point(event);
+    setCursor(nextPoint);
+    setStrokes(current => [...current, { radius, points: [nextPoint] }]);
   };
   const move = event => {
-    if (!drawing.current) return;
     const nextPoint = point(event);
+    setCursor(nextPoint);
+    if (!drawing.current) return;
     setStrokes(current => {
       const next = [...current];
       const stroke = next[next.length - 1];
@@ -313,7 +334,7 @@ function MaskEditor({ image, strokes, setStrokes, radius, setRadius }) {
       <button type="button" className="text-button" disabled={!strokes.length} onClick={() => setStrokes([])}>Clear edits</button>
     </div>
     <p className="analysis-mask-hint">Brush over white artefacts to exclude them from ROI calibration.</p>
-    <div ref={surface} className="analysis-mask-surface" onPointerDown={start} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish}>
+    <div ref={surface} className="analysis-mask-surface" onPointerDown={start} onPointerMove={move} onPointerEnter={event => setCursor(point(event))} onPointerLeave={() => setCursor(null)} onPointerUp={finish} onPointerCancel={finish}>
       <img src={image} alt="Editable plant-mask analysis preview" draggable={false} />
       <canvas ref={canvas} />
     </div>
