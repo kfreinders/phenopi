@@ -66,6 +66,14 @@
 .analysis-empty { min-height: 31rem; display: grid; place-content: center; justify-items: center; text-align: center; padding: 2rem; }
 .analysis-empty > span { font-size: 2rem; color: var(--muted); margin-bottom: .8rem; }
 .analysis-empty p { max-width: 28rem; margin-top: .4rem; }
+.analysis-grid-size { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; margin-top: 1rem; }
+.analysis-grid-size label { font-size: .8rem; font-weight: 650; }
+.analysis-grid-size input { width: 100%; margin-top: .4rem; padding: .55rem; border: 1px solid var(--line); border-radius: .5rem; }
+.analysis-detect-button { width: 100%; margin-top: .9rem; }
+.analysis-roi-note { margin: .7rem 0 0; color: var(--muted); font-size: .78rem; line-height: 1.45; }
+.analysis-stage--roi { grid-column: 1 / -1; }
+.analysis-stage--roi .analysis-stage-image { aspect-ratio: 16 / 7; }
+.analysis-roi-ready { padding: .3rem .55rem; border-radius: 999px; color: #067647; background: #dcfae6; font-size: .74rem; font-weight: 750; }
 @media (max-width: 900px) {
   .analysis-setup-layout { grid-template-columns: 1fr; }
   .analysis-controls { position: static; }

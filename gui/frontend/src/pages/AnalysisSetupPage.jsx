@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ErrorNotice, Loading } from "../components";
-import { getAnalysisConfig, previewAnalysis } from "../api";
+import { detectAnalysisRoi, getAnalysisConfig, previewAnalysis } from "../api";
 
 const stageLabels = {
   original: ["Input", "Rotation and framing"],
@@ -14,6 +14,8 @@ export function AnalysisSetupPage() {
   const [imageData, setImageData] = useState(null);
   const [fileName, setFileName] = useState("");
   const [stages, setStages] = useState(null);
+  const [roi, setRoi] = useState(null);
+  const [detectingRoi, setDetectingRoi] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const requestNumber = useRef(0);
@@ -59,13 +61,29 @@ export function AnalysisSetupPage() {
       setFileName(file.name);
       setImageData(reader.result);
       setStages(null);
+      setRoi(null);
       setError(null);
     };
     reader.onerror = () => setError(new Error("The calibration image could not be read."));
     reader.readAsDataURL(file);
   };
 
-  const update = (key, value) => setConfig(current => ({ ...current, [key]: value }));
+  const update = (key, value) => {
+    setRoi(null);
+    setConfig(current => ({ ...current, [key]: value }));
+  };
+  const detectRoi = async () => {
+    setDetectingRoi(true);
+    setError(null);
+    try {
+      const result = await detectAnalysisRoi(imageData, config);
+      setRoi(result);
+    } catch (reason) {
+      setError(reason);
+    } finally {
+      setDetectingRoi(false);
+    }
+  };
   if (!config) return <Loading label="Loading analysis settings" />;
 
   return <section className="analysis-page">
@@ -93,6 +111,15 @@ export function AnalysisSetupPage() {
           <RangeControl label="Remove small regions" value={config.fill_size} min={0} max={2000} step={10} onChange={value => update("fill_size", value)} />
           <RangeControl label="Rotation" value={config.rotate_angle} min={-10} max={10} step={0.1} suffix="°" onChange={value => update("rotate_angle", value)} />
         </fieldset>
+        <fieldset disabled={!imageData}>
+          <legend>ROI grid</legend>
+          <div className="analysis-grid-size">
+            <label>Rows<input type="number" min="1" max="30" value={config.roi_rows} onChange={event => update("roi_rows", Number(event.target.value))} /></label>
+            <label>Columns<input type="number" min="1" max="30" value={config.roi_cols} onChange={event => update("roi_cols", Number(event.target.value))} /></label>
+          </div>
+          <button type="button" className="analysis-detect-button" onClick={detectRoi} disabled={detectingRoi}>{detectingRoi ? "Detecting ROI grid…" : roi ? "Detect ROI grid again" : "Detect ROI grid"}</button>
+          <p className="analysis-roi-note">PlantCV performs this slower detection once. The resulting grid is reused for every image in the experiment.</p>
+        </fieldset>
       </aside>
       <section className={`analysis-preview-area${loading ? " is-updating" : ""}`} aria-live="polite">
         {!imageData && <div className="card analysis-empty"><span aria-hidden="true">◫</span><h3>Select a calibration image</h3><p>The segmentation stages will appear here as you adjust the controls.</p></div>}
@@ -102,6 +129,10 @@ export function AnalysisSetupPage() {
             <header><div><h3>{title}</h3><p>{description}</p></div>{loading && key === "overlay" && <span className="analysis-updating">Updating…</span>}</header>
             <div className="analysis-stage-image"><img src={stages[key]} alt={`${title} analysis preview`} /></div>
           </article>)}
+          {roi && <article className="card analysis-stage analysis-stage--roi">
+            <header><div><h3>Automatic ROI grid</h3><p>{roi.definition.rows} × {roi.definition.columns} reusable regions</p></div><span className="analysis-roi-ready">Detected</span></header>
+            <div className="analysis-stage-image"><img src={roi.overlay} alt="Automatically detected PlantCV ROI grid" /></div>
+          </article>}
         </div>}
       </section>
     </div>

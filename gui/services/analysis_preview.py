@@ -4,7 +4,13 @@ import base64
 import binascii
 
 from scripts.analysis.config import AnalysisConfig
-from scripts.analysis.preview import encode_png, generate_analysis_preview
+from scripts.analysis.preview import (
+    encode_png,
+    fit_for_display,
+    generate_analysis_preview,
+    prepare_analysis_image,
+)
+from scripts.analysis.roi import detect_roi_definition
 
 
 MAX_CALIBRATION_IMAGE_BYTES = 8_500_000
@@ -23,6 +29,21 @@ def build_analysis_preview(image_data: str, config_data: dict) -> dict:
             "mask": _png_data_url(encode_png(preview.mask)),
             "overlay": _png_data_url(encode_png(preview.overlay)),
         },
+    }
+
+
+def build_roi_preview(image_data: str, config_data: dict) -> dict:
+    image_bytes = _decode_image_data(image_data)
+    config = AnalysisConfig.from_dict(config_data)
+    prepared = prepare_analysis_image(image_bytes, config)
+    definition = detect_roi_definition(
+        prepared.image, prepared.mask, config
+    )
+    overlay = fit_for_display(definition.draw_overlay(prepared.image), 960)
+    return {
+        "definition": definition.to_dict(),
+        "definition_fingerprint": definition.fingerprint,
+        "overlay": _png_data_url(encode_png(overlay)),
     }
 
 

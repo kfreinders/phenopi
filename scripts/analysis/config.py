@@ -87,6 +87,8 @@ class AnalysisConfig:
             "DPI",
             self.dpi,
         )
+        if self.roi_rows > 30 or self.roi_cols > 30:
+            raise ValueError("ROI rows and columns cannot exceed 30.")
 
         manual_bounds = (
             self.grid_x,

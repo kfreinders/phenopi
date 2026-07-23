@@ -17,6 +17,7 @@ sys.modules.setdefault("plantcv", plantcv_package)
 
 from scripts.analysis import analyze_canopy
 from scripts.analysis.config import AnalysisConfig
+from scripts.analysis.roi import RoiCircle, RoiDefinition
 
 
 def test_analyze_image_returns_identified_atomic_outputs(tmp_path, monkeypatch):
@@ -28,33 +29,15 @@ def test_analyze_image_returns_identified_atomic_outputs(tmp_path, monkeypatch):
     monkeypatch.setattr(analyze_canopy, "configure_plantcv", lambda *_: None)
     monkeypatch.setattr(analyze_canopy.pcv.outputs, "clear", lambda: None)
     monkeypatch.setattr(
-        analyze_canopy, "load_and_rotate_image", lambda *_: np.zeros((2, 2, 3))
+        analyze_canopy,
+        "load_and_rotate_image",
+        lambda *_: np.zeros((2, 2, 3), dtype=np.uint8),
     )
     monkeypatch.setattr(
         analyze_canopy.pcv.visualize, "colorspaces", lambda **_: None
     )
     monkeypatch.setattr(
         analyze_canopy, "segment_plants", lambda *_: np.zeros((2, 2))
-    )
-    monkeypatch.setattr(
-        analyze_canopy, "remove_square_components", lambda mask: mask
-    )
-    monkeypatch.setattr(
-        analyze_canopy,
-        "resolve_analysis_frame",
-        lambda image, mask, *_: (image, mask),
-    )
-    monkeypatch.setattr(
-        analyze_canopy,
-        "make_labeled_mask",
-        lambda *_: (np.zeros((2, 2)), 1, []),
-    )
-
-    def write_overlay(_image, _cells, path):
-        Path(path).write_bytes(b"overlay")
-
-    monkeypatch.setattr(
-        analyze_canopy, "save_roi_circle_overlay", write_overlay
     )
     monkeypatch.setattr(analyze_canopy, "analyze_shape", lambda *_: None)
     monkeypatch.setattr(
@@ -64,15 +47,26 @@ def test_analyze_image_returns_identified_atomic_outputs(tmp_path, monkeypatch):
         analyze_canopy, "add_metric_units", lambda frame, _cfg: frame
     )
 
-    config = AnalysisConfig()
-    result = analyze_canopy.analyze_image(image_path, output_dir, config)
+    config = AnalysisConfig(roi_rows=1, roi_cols=1)
+    roi = RoiDefinition(
+        schema_version=1,
+        rows=1,
+        columns=1,
+        source_width=2,
+        source_height=2,
+        config_fingerprint=config.fingerprint,
+        circles=(RoiCircle(0, 0, 0.5, 0.5, 0.4),),
+    )
+    result = analyze_canopy.analyze_image(
+        image_path, output_dir, config, roi
+    )
 
     assert result.image_path == image_path
     assert result.traits_path == output_dir / "capture_traits.csv"
     assert result.overlay_path == output_dir / "capture_roi_overlay.png"
     assert result.config_fingerprint == config.fingerprint
     pd.testing.assert_frame_equal(result.traits, traits)
-    assert result.overlay_path.read_bytes() == b"overlay"
+    assert result.overlay_path.stat().st_size > 0
     assert not list(output_dir.glob(".*"))
 
 
@@ -83,3 +77,45 @@ def test_analyze_image_rejects_missing_input(tmp_path):
             tmp_path / "analysis",
             AnalysisConfig(),
         )
+
+
+def test_batch_calibrates_and_saves_roi_only_once(tmp_path, monkeypatch):
+    images = [tmp_path / "one.jpg", tmp_path / "two.jpg"]
+    for image in images:
+        image.touch()
+    output_dir = tmp_path / "analysis"
+    config = AnalysisConfig(roi_rows=1, roi_cols=1)
+    roi = RoiDefinition(
+        schema_version=1,
+        rows=1,
+        columns=1,
+        source_width=100,
+        source_height=100,
+        config_fingerprint=config.fingerprint,
+        circles=(RoiCircle(0, 0, 0.5, 0.5, 0.4),),
+    )
+    monkeypatch.setattr(analyze_canopy, "calibrate_roi", lambda *_: roi)
+    worker_calls = []
+
+    def worker(image_path, _output_dir, _config, definition):
+        worker_calls.append((image_path, definition))
+        return pd.DataFrame([{"image": image_path.name, "area": 1}])
+
+    monkeypatch.setattr(analyze_canopy, "_analyze_image_worker", worker)
+
+    result = analyze_canopy.analyze_images(
+        images, output_dir, config, n_workers=1
+    )
+
+    assert len(result) == 2
+    assert worker_calls == [(images[0], roi), (images[1], roi)]
+    assert RoiDefinition.load(output_dir / "roi-definition.json") == roi
+
+    monkeypatch.setattr(
+        analyze_canopy,
+        "calibrate_roi",
+        lambda *_: pytest.fail("saved ROI should have been reused"),
+    )
+    worker_calls.clear()
+    analyze_canopy.analyze_images(images, output_dir, config, n_workers=1)
+    assert worker_calls == [(images[0], roi), (images[1], roi)]

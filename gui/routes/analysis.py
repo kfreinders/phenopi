@@ -3,7 +3,10 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from gui.services.analysis_preview import build_analysis_preview
+from gui.services.analysis_preview import (
+    build_analysis_preview,
+    build_roi_preview,
+)
 
 
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
@@ -27,5 +30,13 @@ def configure_analysis() -> dict:
 def preview_analysis(request: AnalysisPreviewRequest) -> dict:
     try:
         return build_analysis_preview(request.image_data, request.config)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/roi")
+def detect_analysis_roi(request: AnalysisPreviewRequest) -> dict:
+    try:
+        return build_roi_preview(request.image_data, request.config)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

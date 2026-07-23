@@ -44,7 +44,8 @@ def create_app() -> FastAPI:
                     parsed_length = int(content_length)
                     maximum = (
                         12_000_000
-                        if request.url.path == "/api/analysis/preview"
+                        if request.url.path
+                        in {"/api/analysis/preview", "/api/analysis/roi"}
                         else 1_000_000
                     )
                     too_large = parsed_length < 0 or parsed_length > maximum

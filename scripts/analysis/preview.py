@@ -16,13 +16,17 @@ class AnalysisPreview:
     overlay: np.ndarray
 
 
-def generate_analysis_preview(
+@dataclass(frozen=True)
+class PreparedAnalysisImage:
+    image: np.ndarray
+    channel: np.ndarray
+    mask: np.ndarray
+
+
+def prepare_analysis_image(
     image_bytes: bytes,
     config: AnalysisConfig,
-    *,
-    max_dimension: int = 960,
-) -> AnalysisPreview:
-    """Generate display-sized segmentation stages without measuring traits."""
+) -> PreparedAnalysisImage:
     if not image_bytes:
         raise ValueError("The calibration image is empty.")
     encoded = np.frombuffer(image_bytes, dtype=np.uint8)
@@ -37,6 +41,22 @@ def generate_analysis_preview(
     channel = lab[:, :, channel_index]
     mask = np.where(channel <= config.threshold, 255, 0).astype(np.uint8)
     mask = _remove_small_components(mask, config.fill_size)
+    return PreparedAnalysisImage(image=rotated, channel=channel, mask=mask)
+
+
+def generate_analysis_preview(
+    image_bytes: bytes,
+    config: AnalysisConfig,
+    *,
+    max_dimension: int = 960,
+) -> AnalysisPreview:
+    """Generate display-sized segmentation stages without measuring traits."""
+    prepared = prepare_analysis_image(image_bytes, config)
+    rotated, channel, mask = (
+        prepared.image,
+        prepared.channel,
+        prepared.mask,
+    )
 
     overlay = rotated.copy()
     selected = mask > 0
@@ -46,12 +66,12 @@ def generate_analysis_preview(
     ).astype(np.uint8)
 
     return AnalysisPreview(
-        original=_fit_for_display(rotated, max_dimension),
-        channel=_fit_for_display(channel, max_dimension),
-        mask=_fit_for_display(
+        original=fit_for_display(rotated, max_dimension),
+        channel=fit_for_display(channel, max_dimension),
+        mask=fit_for_display(
             mask, max_dimension, interpolation=cv2.INTER_NEAREST
         ),
-        overlay=_fit_for_display(overlay, max_dimension),
+        overlay=fit_for_display(overlay, max_dimension),
     )
 
 
@@ -96,7 +116,7 @@ def _remove_small_components(mask: np.ndarray, minimum_area: int) -> np.ndarray:
     return cleaned
 
 
-def _fit_for_display(
+def fit_for_display(
     image: np.ndarray,
     max_dimension: int,
     *,
