@@ -322,13 +322,20 @@ def poll_scheduler_commands(
         print("[scheduler] Ignoring cancellation request for an inactive schedule.")
         return
 
-    if run_archive is not None:
-        run_archive.mark_ended("cancelled")
     cancelled_path = config.runtime_dir / (
         f"cancelled-schedule-{active_schedule_hash[:12]}.json"
     )
     config.schedule_path.replace(cancelled_path)
-    clear_scheduler_command(command_path)
+    try:
+        if run_archive is not None:
+            run_archive.mark_ended("cancelled")
+    except (OSError, ValueError):
+        cancelled_path.replace(config.schedule_path)
+        raise
+    try:
+        clear_scheduler_command(command_path)
+    except OSError as exc:
+        print(f"[scheduler] Could not clear accepted scheduler command: {exc}")
     if heartbeat is not None:
         heartbeat.set_capture_status_provider(None)
         heartbeat.set_state(

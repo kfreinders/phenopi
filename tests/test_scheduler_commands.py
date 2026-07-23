@@ -88,3 +88,25 @@ def test_scheduler_ignores_request_for_a_different_schedule(tmp_path):
     assert scheduler.shutdown_calls == []
     assert schedule_path.exists()
     assert not (tmp_path / "scheduler-command.json").exists()
+
+
+def test_failed_cancellation_archive_restores_the_active_schedule(tmp_path):
+    schedule_hash = "c" * 64
+    schedule_path = tmp_path / "schedule.json"
+    schedule_path.write_text("schedule")
+    config = SimpleNamespace(runtime_dir=tmp_path, schedule_path=schedule_path)
+    scheduler = FakeScheduler()
+    archive = SimpleNamespace(
+        mark_ended=lambda state: (_ for _ in ()).throw(OSError("archive failed"))
+    )
+    command_path = tmp_path / "scheduler-command.json"
+    request_schedule_cancellation(command_path, schedule_hash)
+
+    with pytest.raises(OSError, match="archive failed"):
+        scheduler_module.poll_scheduler_commands(
+            scheduler, config, schedule_hash, run_archive=archive
+        )
+
+    assert schedule_path.read_text() == "schedule"
+    assert command_path.exists()
+    assert scheduler.shutdown_calls == []
