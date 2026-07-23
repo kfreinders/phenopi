@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from gui.app import app
-from gui.config import APP_DIR, static_version, templates
+from gui.config import APP_DIR
 from gui.services.scheduler_status import (
     build_daily_activity,
     build_schedule_overview,
@@ -368,7 +368,7 @@ def test_status_marks_missing_or_invalid_heartbeat_unavailable(
 
 
 def test_scheduler_status_routes_are_registered():
-    assert str(app.url_path_for("scheduler_status_page")) == "/scheduler"
+    assert str(app.url_path_for("react_app", path="scheduler")) == "/scheduler"
     assert str(app.url_path_for("scheduler_status_api")) == (
         "/api/scheduler/status"
     )
@@ -377,39 +377,26 @@ def test_scheduler_status_routes_are_registered():
     )
 
 
-def test_scheduler_dashboard_assets_are_cache_busted():
-    scheduler_source, _, _ = templates.env.loader.get_source(
-        templates.env, "scheduler.html"
-    )
-    base_source, _, _ = templates.env.loader.get_source(
-        templates.env, "base.html"
-    )
+def test_scheduler_dashboard_is_owned_by_the_react_build():
+    source = (APP_DIR / "frontend" / "src" / "pages" / "SchedulerPage.jsx").read_text()
+    config = (APP_DIR / "frontend" / "vite.config.js").read_text()
 
-    assert scheduler_source.count("?v={{ static_version(") == 2
-    assert base_source.count("?v={{ static_version(") == 2
-    assert static_version("scheduler_health.js") > 0
+    assert "function Dashboard" in source
+    assert 'outDir: resolve(import.meta.dirname, "../react-dist")' in config
 
 
 def test_scheduler_dashboard_has_accessible_storage_meter():
-    scheduler_source, _, _ = templates.env.loader.get_source(
-        templates.env, "scheduler.html"
-    )
-    dashboard_script = (APP_DIR / "static" / "scheduler_status.js").read_text()
+    source = (APP_DIR / "frontend" / "src" / "pages" / "SchedulerPage.jsx").read_text()
 
-    assert 'id="storage-meter"' in scheduler_source
-    assert 'role="progressbar"' in scheduler_source
-    assert 'aria-label="Capture storage used"' in scheduler_source
-    assert 'storageMeter.setAttribute("aria-valuenow"' in dashboard_script
-    assert "storage-meter--warning" in dashboard_script
-    assert "storage-meter--critical" in dashboard_script
-    assert 'id="storage-risk"' in scheduler_source
-    assert "function renderStorageRisk" in dashboard_script
+    assert 'role="progressbar"' in source
+    assert "aria-valuenow={storage.used_percent}" in source
+    assert "storage-meter--warning" in source
+    assert "storage-meter--critical" in source
+    assert "storageRisk" in source
 
 
 def test_empty_scheduler_state_is_compact_and_has_guided_action():
-    scheduler_source, _, _ = templates.env.loader.get_source(
-        templates.env, "scheduler.html"
-    )
+    scheduler_source = (APP_DIR / "frontend" / "src" / "pages" / "SchedulerPage.jsx").read_text()
     dashboard_styles = (APP_DIR / "static" / "scheduler_status.css").read_text()
 
     assert "empty-icon" not in scheduler_source
@@ -418,33 +405,20 @@ def test_empty_scheduler_state_is_compact_and_has_guided_action():
     assert "prefers-reduced-motion" in dashboard_styles
 
 
-def test_page_assets_are_isolated_and_cache_busted():
-    base_source, _, _ = templates.env.loader.get_source(
-        templates.env, "base.html"
-    )
-    schedule_source, _, _ = templates.env.loader.get_source(
-        templates.env, "schedule.html"
-    )
-    camera_source, _, _ = templates.env.loader.get_source(
-        templates.env, "camera.html"
-    )
+def test_react_build_collects_the_page_styles():
+    styles = (APP_DIR / "frontend" / "src" / "styles.css").read_text()
 
-    assert "visual_preview.css" not in base_source
-    assert "updateModeSections" not in base_source
-    assert "visual_preview.css" in schedule_source
-    assert "schedule.js" in schedule_source
-    assert "camera_preview.css" in camera_source
-    assert "camera_preview.js" in camera_source
-    assert schedule_source.count("?v={{ static_version(") == 2
-    assert camera_source.count("?v={{ static_version(") == 2
+    assert '../../static/style.css' in styles
+    assert '../../static/visual_preview.css' in styles
+    assert '../../static/scheduler_status.css' in styles
+    assert '../../static/camera_preview.css' in styles
 
 
 def test_global_health_poll_uses_lightweight_endpoint():
-    health_script = (APP_DIR / "static" / "scheduler_health.js").read_text()
-    dashboard_script = (APP_DIR / "static" / "scheduler_status.js").read_text()
+    api_source = (APP_DIR / "frontend" / "src" / "api.js").read_text()
+    hooks = (APP_DIR / "frontend" / "src" / "hooks.js").read_text()
 
-    assert 'fetch("/api/scheduler/health"' in health_script
-    assert 'fetch("/api/scheduler/status"' not in health_script
-    assert 'fetch("/api/scheduler/status"' in dashboard_script
-    assert "scheduler-status-updated" in health_script
-    assert "scheduler-status-updated" in dashboard_script
+    assert 'api("/api/scheduler/health")' in api_source
+    assert 'api("/api/scheduler/status")' in api_source
+    assert "useSchedulerHealth" in hooks
+    assert "useSchedulerStatus" in hooks

@@ -12,3 +12,7 @@ main.*
 !main.tex
 *.aux
 /captures_original
+
+# React frontend
+gui/frontend/node_modules/
+gui/react-dist/

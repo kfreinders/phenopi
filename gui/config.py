@@ -3,9 +3,6 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from fastapi.templating import Jinja2Templates
-
-
 APP_DIR = Path(__file__).resolve().parent
 
 
@@ -24,13 +21,3 @@ SCHEDULE_DRAFT_PATH = PROJECT_ROOT / "runtime" / "schedule-draft.json"
 SCHEDULER_HEARTBEAT_PATH = (
     PROJECT_ROOT / "runtime" / "scheduler-heartbeat.json"
 )
-
-templates = Jinja2Templates(directory=APP_DIR / "templates")
-
-
-def static_version(filename: str) -> int:
-    """Return a cache key that changes with a static asset."""
-    return (APP_DIR / "static" / filename).stat().st_mtime_ns
-
-
-templates.env.globals["static_version"] = static_version

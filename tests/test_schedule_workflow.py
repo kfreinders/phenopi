@@ -1,293 +1,171 @@
 import json
 from datetime import date, datetime, timedelta, timezone
 
-from starlette.requests import Request
+import pytest
+from fastapi import HTTPException
 
 from gui.app import app
 from gui.config import APP_DIR
-from gui.routes import schedule as schedule_routes
-from gui.services.schedule_preview import ScheduleFormData, persist_schedule_draft
+from gui.routes import schedule_api
+from gui.services.schedule_drafts import persist_schedule_draft
+from gui.services.schedule_form import ScheduleFormData
 
 
-def request_for(path: str) -> Request:
-    return Request(
-        {
-            "type": "http",
-            "http_version": "1.1",
-            "method": "GET",
-            "scheme": "http",
-            "path": path,
-            "raw_path": path.encode(),
-            "query_string": b"",
-            "root_path": "",
-            "headers": [],
-            "client": ("test", 1),
-            "server": ("testserver", 80),
-            "app": app,
-        }
-    )
+FRONTEND = APP_DIR / "frontend" / "src"
 
 
-def schedule_form_data() -> ScheduleFormData:
-    return ScheduleFormData(
-        mode="every",
-        experiment_name="Seedling drought response",
-        start_date=date.today().isoformat(),
-        num_days=2,
-        replicates=2,
-        replicate_interval_seconds=10,
-        every_start="09:00",
-        every_end="10:00",
-        every_step_minutes=30,
-    )
+def schedule_form_data(**updates) -> ScheduleFormData:
+    values = {
+        "mode": "every",
+        "experiment_name": "Seedling drought response",
+        "researcher": "Researcher One",
+        "notes": "Tray A",
+        "start_date": date.today().isoformat(),
+        "num_days": 2,
+        "replicates": 2,
+        "replicate_interval_seconds": 10,
+        "every_start": "09:00",
+        "every_end": "10:00",
+        "every_step_minutes": 30,
+    }
+    values.update(updates)
+    return ScheduleFormData(**values)
 
 
-def write_heartbeat(
-    path,
-    *,
-    age_seconds=0,
-    state="waiting_for_schedule",
-    schedule=None,
-    storage=None,
-):
+def write_heartbeat(path, *, age_seconds=0, state="waiting_for_schedule", schedule=None, storage=None):
     timestamp = datetime.now(timezone.utc).timestamp() - age_seconds
-    path.write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "timestamp": datetime.fromtimestamp(
-                    timestamp, timezone.utc
-                ).isoformat(),
-                "state": state,
-                "message": "test scheduler state",
-                "schedule": schedule,
-                "last_capture": None,
-                "storage": storage,
-            }
-        )
-    )
+    path.write_text(json.dumps({
+        "version": 1,
+        "timestamp": datetime.fromtimestamp(timestamp, timezone.utc).isoformat(),
+        "state": state,
+        "message": "test scheduler state",
+        "schedule": schedule,
+        "last_capture": None,
+        "storage": storage,
+    }))
 
 
 def configure_paths(monkeypatch, tmp_path):
-    draft_path = tmp_path / "schedule-draft.json"
-    schedule_path = tmp_path / "schedule.json"
-    heartbeat_path = tmp_path / "scheduler-heartbeat.json"
-    monkeypatch.setattr(schedule_routes, "SCHEDULE_DRAFT_PATH", draft_path)
-    monkeypatch.setattr(schedule_routes, "DEFAULT_SCHEDULE_PATH", schedule_path)
-    monkeypatch.setattr(
-        schedule_routes, "SCHEDULER_HEARTBEAT_PATH", heartbeat_path
-    )
-    return draft_path, schedule_path, heartbeat_path
+    draft = tmp_path / "schedule-draft.json"
+    schedule = tmp_path / "schedule.json"
+    heartbeat = tmp_path / "scheduler-heartbeat.json"
+    monkeypatch.setattr(schedule_api, "SCHEDULE_DRAFT_PATH", draft)
+    monkeypatch.setattr(schedule_api, "DEFAULT_SCHEDULE_PATH", schedule)
+    monkeypatch.setattr(schedule_api, "SCHEDULER_HEARTBEAT_PATH", heartbeat)
+    return draft, schedule, heartbeat
 
 
-def test_configure_page_makes_workflow_and_next_action_explicit(
-    tmp_path, monkeypatch
-):
+def test_configure_api_and_react_form_expose_safe_defaults(tmp_path, monkeypatch):
     configure_paths(monkeypatch, tmp_path)
+    payload = schedule_api.configure_schedule()
+    source = (FRONTEND / "pages" / "ScheduleBuilderPage.jsx").read_text()
 
-    html = schedule_routes.schedule_form(request_for("/schedule")).body.decode()
-
-    assert "Configure" in html
-    assert "Review" in html
-    assert "Activate" in html
-    assert "Confirmed" in html
-    assert "Continue to review" in html
-    assert 'name="output"' not in html
-    assert 'name="overwrite"' not in html
-    assert 'name="num_days" min="1" max="3650"' in html
-    assert 'name="replicates" min="1" max="100"' in html
-    assert f'min="{date.today().isoformat()}"' in html
-    assert 'value="1"' in html
-    assert 'id="replicate-interval-control"' in html
-    assert 'id="replicate-interval"' in html
-
-    script = (APP_DIR / "static" / "schedule.js").read_text()
-    assert "function updateReplicateInterval" in script
-    assert "interval.readOnly = !hasReplicates" in script
+    assert payload["form"]["replicates"] == 1
+    assert payload["form"]["replicate_interval_seconds"] == 0
+    assert payload["minimum_start_date"] == date.today().isoformat()
+    assert "Continue to review" in source
+    assert 'max="3650"' in source
+    assert "replicate-interval-control" in source
 
 
-def test_configure_page_discards_expired_draft_without_showing_error(
-    tmp_path, monkeypatch
-):
+def test_configure_api_discards_an_expired_draft(tmp_path, monkeypatch):
     draft_path, _, _ = configure_paths(monkeypatch, tmp_path)
-    form = schedule_form_data().model_copy(
-        update={"start_date": (date.today() - timedelta(days=1)).isoformat()}
-    )
-    draft_path.write_text(
-        json.dumps(
-            {
-                "version": 2,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "form": form.model_dump(),
-                "schedule": {},
-                "schedule_hash": "a" * 64,
-            }
-        )
-    )
+    form = schedule_form_data(start_date=(date.today() - timedelta(days=1)).isoformat())
+    draft_path.write_text(json.dumps({
+        "version": 2,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "form": form.model_dump(),
+        "schedule": {},
+        "schedule_hash": "a" * 64,
+    }))
 
-    response = schedule_routes.schedule_form(request_for("/schedule"))
-    html = response.body.decode()
+    payload = schedule_api.configure_schedule()
 
-    assert response.status_code == 200
+    assert payload["draft_state"] == "none"
+    assert payload["form"]["start_date"] == date.today().isoformat()
     assert not draft_path.exists()
-    assert "Start date cannot be in the past." not in html
-    assert f'value="{date.today().isoformat()}"' in html
 
 
-def test_rejected_preview_preserves_all_submitted_form_fields(
-    tmp_path, monkeypatch
-):
+def test_rejected_draft_returns_a_user_facing_api_error(tmp_path, monkeypatch):
     configure_paths(monkeypatch, tmp_path)
-    form = schedule_form_data().model_copy(
-        update={
-            "researcher": "Dr Test Researcher",
-            "notes": "Keep these experimental notes.",
-            "start_date": (date.today() - timedelta(days=1)).isoformat(),
-        }
-    )
+    form = schedule_form_data(start_date=(date.today() - timedelta(days=1)).isoformat())
 
-    response = schedule_routes.preview_schedule(
-        request_for("/schedule/preview"), form
-    )
-    html = response.body.decode()
+    with pytest.raises(HTTPException, match="past") as raised:
+        schedule_api.create_schedule_draft(form)
 
-    assert response.status_code == 200
-    assert "Start date cannot be in the past." in html
-    assert 'value="Seedling drought response"' in html
-    assert 'value="Dr Test Researcher"' in html
-    assert "Keep these experimental notes." in html
-    assert f'value="{form.start_date}"' in html
+    assert raised.value.status_code == 422
 
 
-def test_preview_persists_draft_and_schedule_page_resumes_review(
-    tmp_path, monkeypatch
-):
-    draft_path, _, heartbeat_path = configure_paths(monkeypatch, tmp_path)
-    write_heartbeat(heartbeat_path)
+def test_draft_api_returns_complete_review_payload(tmp_path, monkeypatch):
+    draft_path, _, heartbeat = configure_paths(monkeypatch, tmp_path)
+    write_heartbeat(heartbeat)
 
-    response = schedule_routes.preview_schedule(
-        request_for("/schedule/preview"), schedule_form_data()
-    )
-    resume = schedule_routes.schedule_form(request_for("/schedule"))
-    review = schedule_routes.review_schedule(
-        request_for("/schedule/review")
-    ).body.decode()
+    payload = schedule_api.create_schedule_draft(schedule_form_data())
 
-    assert response.status_code == 303
-    assert response.headers["location"] == "/schedule/review"
     assert draft_path.exists()
-    assert resume.headers["location"] == "/schedule/review"
-    assert "Review before activation" in review
-    assert "Nothing changes in the scheduler until you activate" in review
+    assert payload["draft"]["form"]["experiment_name"] == "Seedling drought response"
+    assert payload["preview"]["total_captures"] == 12
+    assert payload["preview"]["timeline_points"]
+    assert payload["can_activate"] is True
 
 
-def test_activation_is_blocked_while_scheduler_is_stale(
-    tmp_path, monkeypatch
-):
-    draft_path, schedule_path, heartbeat_path = configure_paths(
-        monkeypatch, tmp_path
-    )
+def test_activation_is_blocked_for_stale_scheduler_or_insufficient_storage(tmp_path, monkeypatch):
+    draft_path, schedule_path, heartbeat = configure_paths(monkeypatch, tmp_path)
     draft = persist_schedule_draft(schedule_form_data(), draft_path)
-    write_heartbeat(heartbeat_path, age_seconds=31)
+    write_heartbeat(heartbeat, age_seconds=31)
+    request = schedule_api.ActivationRequest(draft_hash=draft.schedule_hash)
 
-    response = schedule_routes.activate_schedule(
-        request_for("/schedule/activate"), draft.schedule_hash
-    )
-    html = response.body.decode()
+    with pytest.raises(HTTPException) as stale:
+        schedule_api.activate_schedule(request)
+    assert stale.value.status_code == 503
+    assert not schedule_path.exists()
 
-    assert "Activation is blocked" in html
-    assert draft_path.exists()
+    write_heartbeat(heartbeat, storage={"free_bytes": 1, "used_percent": 50})
+    with pytest.raises(HTTPException) as storage:
+        schedule_api.activate_schedule(request)
+    assert storage.value.status_code == 409
     assert not schedule_path.exists()
 
 
-def test_activation_is_blocked_when_protected_estimate_exceeds_storage(
-    tmp_path, monkeypatch
-):
-    draft_path, schedule_path, heartbeat_path = configure_paths(
-        monkeypatch, tmp_path
-    )
-    draft = persist_schedule_draft(schedule_form_data(), draft_path)
-    write_heartbeat(
-        heartbeat_path,
-        storage={"free_bytes": 100_000_000, "used_percent": 50.0},
-    )
-
-    review = schedule_routes.review_schedule(
-        request_for("/schedule/review")
-    ).body.decode()
-    activation = schedule_routes.activate_schedule(
-        request_for("/schedule/activate"), draft.schedule_hash
-    )
-
-    assert "Not enough storage for this experiment" in review
-    assert "182.4 MB" in review
-    assert "100 MB" in review
-    assert "Activation is blocked" in activation.body.decode()
-    assert draft_path.exists()
-    assert not schedule_path.exists()
-
-
-def test_review_prominently_identifies_an_already_active_schedule(
-    tmp_path, monkeypatch
-):
-    draft_path, _, heartbeat_path = configure_paths(monkeypatch, tmp_path)
-    draft = persist_schedule_draft(schedule_form_data(), draft_path)
-    write_heartbeat(
-        heartbeat_path,
-        state="running",
-        schedule={
-            "hash": draft.schedule_hash,
-            "timezone": "Europe/Amsterdam",
-            **draft.schedule,
-        },
-    )
-
-    html = schedule_routes.review_schedule(
-        request_for("/schedule/review")
-    ).body.decode()
-
-    assert "This schedule is already active" in html
-    assert "No activation is needed" in html
-    assert ">Already active</button>" in html
-
-
-def test_review_does_not_compare_draft_with_a_finished_schedule(
-    tmp_path, monkeypatch
-):
-    draft_path, _, heartbeat_path = configure_paths(monkeypatch, tmp_path)
+def test_finished_schedule_is_not_used_for_draft_comparison(tmp_path, monkeypatch):
+    draft_path, _, heartbeat = configure_paths(monkeypatch, tmp_path)
     persist_schedule_draft(schedule_form_data(), draft_path)
-    finished_snapshot = {
+    write_heartbeat(heartbeat, schedule={
         "hash": "a" * 64,
         "timezone": "Europe/Amsterdam",
         "start_date": (date.today() - timedelta(days=4)).isoformat(),
         "num_days": 2,
         "times": ["08:00", "16:00"],
-        "replicates": 3,
-        "replicate_interval_seconds": 15,
-    }
-    write_heartbeat(
-        heartbeat_path,
-        state="waiting_for_schedule",
-        schedule=finished_snapshot,
-    )
+        "replicates": 1,
+        "replicate_interval_seconds": 0,
+    })
 
-    html = schedule_routes.review_schedule(
-        request_for("/schedule/review")
-    ).body.decode()
+    review = schedule_api.get_schedule_draft()
 
-    assert "Review before activation" in html
-    assert "Changes from active schedule" not in html
-    assert 'class="comparison-card card"' not in html
+    assert review["comparison"]["has_active_schedule"] is False
 
 
-def test_active_schedule_requires_confirmation_before_atomic_promotion(
-    tmp_path, monkeypatch
-):
-    draft_path, schedule_path, heartbeat_path = configure_paths(
-        monkeypatch, tmp_path
-    )
+def test_identical_active_schedule_is_prominent_and_needs_no_activation(tmp_path, monkeypatch):
+    draft_path, _, heartbeat = configure_paths(monkeypatch, tmp_path)
     draft = persist_schedule_draft(schedule_form_data(), draft_path)
-    active_snapshot = {
+    write_heartbeat(heartbeat, state="running", schedule={
+        "hash": draft.schedule_hash,
+        "timezone": "Europe/Amsterdam",
+        **draft.schedule,
+    })
+
+    review = schedule_api.get_schedule_draft()
+    result = schedule_api.activate_schedule(schedule_api.ActivationRequest(draft_hash=draft.schedule_hash))
+
+    assert review["already_active"] is True
+    assert result == {"schedule_hash": draft.schedule_hash, "already_active": True}
+    assert not draft_path.exists()
+
+
+def test_active_schedule_requires_confirmation_before_atomic_promotion(tmp_path, monkeypatch):
+    draft_path, schedule_path, heartbeat = configure_paths(monkeypatch, tmp_path)
+    draft = persist_schedule_draft(schedule_form_data(), draft_path)
+    write_heartbeat(heartbeat, state="running", schedule={
         "hash": "a" * 64,
         "timezone": "Europe/Amsterdam",
         "start_date": (date.today() - timedelta(days=1)).isoformat(),
@@ -295,113 +173,28 @@ def test_active_schedule_requires_confirmation_before_atomic_promotion(
         "times": ["00:00", "23:59"],
         "replicates": 1,
         "replicate_interval_seconds": 0,
-    }
-    write_heartbeat(
-        heartbeat_path,
-        state="running",
-        schedule=active_snapshot,
-    )
+    })
+    request = schedule_api.ActivationRequest(draft_hash=draft.schedule_hash)
 
-    warning = schedule_routes.activate_schedule(
-        request_for("/schedule/activate"), draft.schedule_hash
-    )
-    activated = schedule_routes.activate_schedule(
-        request_for("/schedule/activate"),
-        draft.schedule_hash,
-        confirm_active_replacement="on",
-    )
+    warning = schedule_api.activate_schedule(request)
+    activated = schedule_api.activate_schedule(request.model_copy(update={"confirm_active_replacement": True}))
 
-    assert "Replace the schedule during an active experiment?" in warning.body.decode()
-    assert warning.status_code == 200
-    assert activated.status_code == 303
-    assert activated.headers["location"].endswith(draft.schedule_hash)
-    assert json.loads(schedule_path.read_text()) == draft.schedule
+    assert warning["confirmation_required"] is True
     assert not draft_path.exists()
+    assert schedule_path.exists()
+    assert activated["schedule_hash"] == draft.schedule_hash
 
 
-def test_schedule_workflow_routes_are_registered():
-    assert str(app.url_path_for("review_schedule")) == "/schedule/review"
-    assert str(app.url_path_for("activate_schedule")) == "/schedule/activate"
-    assert str(app.url_path_for("schedule_activation")) == (
-        "/schedule/activation"
-    )
-
-
-def test_activation_page_rejects_invalid_hash():
-    response = schedule_routes.schedule_activation(
-        request_for("/schedule/activation"), "not-a-hash"
-    )
-
-    assert response.status_code == 303
-    assert response.headers["location"] == "/schedule"
-
-
-def test_activation_page_waits_for_scheduler_hash(tmp_path, monkeypatch):
-    _, _, heartbeat_path = configure_paths(monkeypatch, tmp_path)
-    write_heartbeat(heartbeat_path)
-
-    html = schedule_routes.schedule_activation(
-        request_for("/schedule/activation"), "a" * 64
-    ).body.decode()
-
-    assert "Waiting for scheduler confirmation" in html
-    assert "schedule_activation.js?v=" in html
-
-
-def test_confirmed_activation_marks_every_workflow_step_complete(
-    tmp_path, monkeypatch
-):
-    draft_path, _, heartbeat_path = configure_paths(monkeypatch, tmp_path)
-    draft = persist_schedule_draft(schedule_form_data(), draft_path)
-    write_heartbeat(
-        heartbeat_path,
-        state="running",
-        schedule={
-            "hash": draft.schedule_hash,
-            "timezone": "Europe/Amsterdam",
-            **draft.schedule,
-        },
-    )
-
-    html = schedule_routes.schedule_activation(
-        request_for("/schedule/activation"), draft.schedule_hash
-    ).body.decode()
-
-    assert html.count("workflow-step--complete") == 4
-    assert "workflow-step--current" not in html
-
-
-def test_activation_client_polls_until_confirmation_or_timeout():
-    contents = (APP_DIR / "static" / "schedule_activation.js").read_text()
-
-    assert 'fetch("/api/scheduler/status"' in contents
-    assert "2000" in contents
-    assert "90000" in contents
-    assert "expectedScheduleHash" in contents
-    assert 'workflow-step")[3].className = "workflow-step workflow-step--complete"' in contents
-    assert 'window.location.assign("/scheduler")' in contents
-    assert "seconds = 3" in contents
-
-
-def test_confirmed_page_redirects_without_offering_another_schedule(
-    tmp_path, monkeypatch
-):
-    draft_path, _, heartbeat_path = configure_paths(monkeypatch, tmp_path)
-    draft = persist_schedule_draft(schedule_form_data(), draft_path)
-    write_heartbeat(
-        heartbeat_path,
-        state="running",
-        schedule={
-            "hash": draft.schedule_hash,
-            "timezone": "Europe/Amsterdam",
-            **draft.schedule,
-        },
-    )
-
-    html = schedule_routes.schedule_activation(
-        request_for("/schedule/activation"), draft.schedule_hash
-    ).body.decode()
-
-    assert "Opening Scheduler Status" in html
-    assert "Create another schedule" not in html
-    assert "View scheduler status" not in html
+def test_schedule_api_routes_and_react_workflow_are_complete():
+    assert str(app.url_path_for("configure_schedule")) == "/api/schedule/configure"
+    assert str(app.url_path_for("create_schedule_draft")) == "/api/schedule/draft"
+    assert str(app.url_path_for("get_schedule_draft")) == "/api/schedule/draft"
+    assert str(app.url_path_for("activate_schedule")) == "/api/schedule/activate"
+    app_source = (FRONTEND / "App.jsx").read_text()
+    activation = (FRONTEND / "pages" / "ActivationPage.jsx").read_text()
+    assert "ScheduleBuilderPage" in app_source
+    assert "ScheduleReviewPage" in app_source
+    assert "ActivationPage" in app_source
+    assert "schedule?.hash === expected" in activation
+    assert "setCountdown(3)" in activation
+    assert "Create another schedule" not in activation
