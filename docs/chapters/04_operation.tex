@@ -14,7 +14,7 @@ new schedule.
 The acquisition schedule is stored in:
 
 \begin{verbatim}
-/home/phenopi/phenotyping/runtime/schedule.json
+$PHENOPI_ROOT/runtime/schedule.json
 \end{verbatim}
 
 This file defines the experiment start date, the number of experiment days, the
@@ -99,7 +99,7 @@ schedules are removed automatically.
 All acquired images are stored in the configured capture directory. In the default installation, this is:
 
 \begin{verbatim}
-/home/phenopi/phenotyping/captures
+$PHENOPI_ROOT/captures
 \end{verbatim}
 
 Images are saved using the filename format:
@@ -129,7 +129,7 @@ directory, and checking that enough storage space remains available. Recent
 captured images can be listed with:
 
 \begin{verbatim}
-ls -lt /home/phenopi/phenotyping/captures | head
+ls -lt "$PHENOPI_CAPTURE_DIR" | head
 \end{verbatim}
 
 Available storage space can be checked with:

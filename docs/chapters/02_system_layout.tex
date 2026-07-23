@@ -65,7 +65,8 @@ between installations, but the main folders should remain easy to identify.
       [\ldots]
     ]
     [deploy/
-      [phenopi-scheduler.service]
+      [install.sh]
+      [systemd/]
     ]
     [results/]
     [runtime/
@@ -90,5 +91,6 @@ timestamped filenames. Analysis results are saved in \texttt{results/}, usually
 as CSV files, diagnostic images, and plots. These files are the main outputs
 used for quality control and biological interpretation. The \texttt{scripts/}
 directory contains the command-line tools used for acquisition and analysis.
-The \texttt{deploy/} directory contains the systemd service file used for
-automated acquisition on the Raspberry Pi. 
+The \texttt{deploy/} directory contains the installer and systemd unit
+templates for automated acquisition and the web interface on the Raspberry
+Pi.
