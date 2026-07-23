@@ -54,7 +54,7 @@ def persist_schedule_draft(
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     schedule = {**preview.as_schedule_dict(), "run": run}
-    if analysis_profile_path.exists():
+    if form.analysis_enabled and analysis_profile_path.exists():
         schedule["analysis"] = AnalysisProfile.load(
             analysis_profile_path
         ).to_dict()
@@ -83,6 +83,10 @@ def load_schedule_draft(
         "run": draft.schedule.get("run"),
     }
     if draft.schedule.get("analysis") is not None:
+        if not draft.form.analysis_enabled:
+            raise ValueError(
+                "The saved schedule draft has an unexpected analysis setup."
+            )
         expected_schedule["analysis"] = AnalysisProfile.from_dict(
             draft.schedule["analysis"]
         ).to_dict()
@@ -110,6 +114,37 @@ def discard_schedule_draft(path: Path = SCHEDULE_DRAFT_PATH) -> None:
     path.unlink(missing_ok=True)
 
 
+def attach_analysis_profile_to_draft(
+    *,
+    draft_path: Path = SCHEDULE_DRAFT_PATH,
+    analysis_profile_path: Path = ANALYSIS_PROFILE_PATH,
+) -> ScheduleDraft:
+    """Snapshot the current calibration into an analysis-enabled draft."""
+    draft, _ = load_schedule_draft(draft_path)
+    if not draft.form.analysis_enabled:
+        raise ValueError(
+            "This experiment was configured for image capture only."
+        )
+    try:
+        profile = AnalysisProfile.load(analysis_profile_path)
+    except FileNotFoundError as exc:
+        raise ValueError(
+            "Complete and save the canopy analysis calibration first."
+        ) from exc
+    schedule = {**draft.schedule, "analysis": profile.to_dict()}
+    updated = draft.model_copy(
+        update={
+            "schedule": schedule,
+            "schedule_hash": _schedule_hash(schedule),
+        }
+    )
+    atomic_write_text(
+        draft_path,
+        updated.model_dump_json(indent=2) + "\n",
+    )
+    return updated
+
+
 def activate_schedule_draft(
     expected_hash: str,
     *,
@@ -120,6 +155,10 @@ def activate_schedule_draft(
     if draft.schedule_hash != expected_hash:
         raise ValueError(
             "This draft has been replaced. Review the latest draft before activating it."
+        )
+    if draft.form.analysis_enabled and draft.schedule.get("analysis") is None:
+        raise ValueError(
+            "Complete and save the canopy analysis calibration before activation."
         )
     write_schedule(
         output=schedule_path,

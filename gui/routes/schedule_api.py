@@ -14,6 +14,7 @@ from phenopi.config import (
 from gui.services.schedule_comparison import compare_schedules
 from gui.services.schedule_drafts import (
     activate_schedule_draft,
+    attach_analysis_profile_to_draft,
     discard_schedule_draft,
     load_current_schedule_draft,
     persist_schedule_draft,
@@ -76,6 +77,28 @@ def delete_schedule_draft() -> None:
     discard_schedule_draft(SCHEDULE_DRAFT_PATH)
 
 
+@router.post("/draft/analysis")
+def attach_draft_analysis() -> dict:
+    try:
+        attach_analysis_profile_to_draft(
+            draft_path=SCHEDULE_DRAFT_PATH,
+            analysis_profile_path=ANALYSIS_PROFILE_PATH,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="No schedule draft is available.",
+        ) from exc
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="The analysis calibration could not be attached.",
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return get_schedule_draft()
+
+
 @router.post("/activate")
 def activate_schedule(request: ActivationRequest) -> dict:
     loaded = _load_draft()
@@ -99,6 +122,14 @@ def activate_schedule(request: ActivationRequest) -> dict:
         raise HTTPException(
             status_code=409,
             detail="The estimated experiment data exceeds the available storage.",
+        )
+    if review["analysis_requested"] and not review["analysis_ready"]:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Complete and save the canopy analysis calibration before "
+                "activating this experiment."
+            ),
         )
 
     active = status.get("schedule")
@@ -168,7 +199,16 @@ def _review_payload(draft, preview, status: dict) -> dict:
         "scheduler_status": status,
         "storage_assessment": storage,
         "scheduler_responding": scheduler_responding,
-        "can_activate": scheduler_responding and storage["status"] != "insufficient",
+        "analysis_requested": draft.form.analysis_enabled,
+        "analysis_ready": draft.schedule.get("analysis") is not None,
+        "can_activate": (
+            scheduler_responding
+            and storage["status"] != "insufficient"
+            and (
+                not draft.form.analysis_enabled
+                or draft.schedule.get("analysis") is not None
+            )
+        ),
         "already_active": bool(
             comparable and comparable.get("hash") == draft.schedule_hash
         ),

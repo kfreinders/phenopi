@@ -9,6 +9,9 @@ from phenopi.config import PROJECT_ROOT
 from gui.routes import schedule_api
 from gui.services.schedule_drafts import persist_schedule_draft
 from gui.services.schedule_form import ScheduleFormData
+from scripts.analysis.config import AnalysisConfig
+from scripts.analysis.profile import AnalysisProfile
+from scripts.analysis.roi import RoiCircle, RoiDefinition
 
 
 FRONTEND = PROJECT_ROOT / "gui" / "frontend" / "src"
@@ -49,10 +52,29 @@ def configure_paths(monkeypatch, tmp_path):
     draft = tmp_path / "schedule-draft.json"
     schedule = tmp_path / "schedule.json"
     heartbeat = tmp_path / "scheduler-heartbeat.json"
+    analysis_profile = tmp_path / "analysis-profile.json"
     monkeypatch.setattr(schedule_api, "SCHEDULE_DRAFT_PATH", draft)
     monkeypatch.setattr(schedule_api, "DEFAULT_SCHEDULE_PATH", schedule)
     monkeypatch.setattr(schedule_api, "SCHEDULER_HEARTBEAT_PATH", heartbeat)
+    monkeypatch.setattr(schedule_api, "ANALYSIS_PROFILE_PATH", analysis_profile)
     return draft, schedule, heartbeat
+
+
+def save_analysis_profile(path):
+    config = AnalysisConfig(roi_rows=1, roi_cols=1)
+    AnalysisProfile(
+        schema_version=1,
+        config=config,
+        roi=RoiDefinition(
+            schema_version=2,
+            rows=1,
+            columns=1,
+            source_width=100,
+            source_height=100,
+            config_fingerprint=config.fingerprint,
+            circles=(RoiCircle(0, 0, 0.5, 0.5, 0.2),),
+        ),
+    ).save(path)
 
 
 def test_configure_api_and_react_form_expose_safe_defaults(tmp_path, monkeypatch):
@@ -62,6 +84,7 @@ def test_configure_api_and_react_form_expose_safe_defaults(tmp_path, monkeypatch
 
     assert payload["form"]["replicates"] == 1
     assert payload["form"]["replicate_interval_seconds"] == 0
+    assert payload["form"]["analysis_enabled"] is False
     assert payload["minimum_start_date"] == date.today().isoformat()
     assert "Continue to review" in source
     assert 'max="365"' in source
@@ -117,6 +140,62 @@ def test_draft_api_returns_complete_review_payload(tmp_path, monkeypatch):
     assert payload["preview"]["total_captures"] == 12
     assert payload["preview"]["timeline_points"]
     assert payload["can_activate"] is True
+    assert payload["analysis_requested"] is False
+    assert payload["analysis_ready"] is False
+
+
+def test_analysis_enabled_draft_requires_calibration_before_activation(
+    tmp_path,
+    monkeypatch,
+):
+    draft_path, schedule_path, heartbeat = configure_paths(monkeypatch, tmp_path)
+    write_heartbeat(heartbeat)
+
+    review = schedule_api.create_schedule_draft(
+        schedule_form_data(analysis_enabled=True)
+    )
+
+    assert review["analysis_requested"] is True
+    assert review["analysis_ready"] is False
+    assert review["can_activate"] is False
+    with pytest.raises(HTTPException, match="calibration") as blocked:
+        schedule_api.activate_schedule(
+            schedule_api.ActivationRequest(
+                draft_hash=review["draft"]["schedule_hash"]
+            )
+        )
+    assert blocked.value.status_code == 409
+    assert not schedule_path.exists()
+
+    save_analysis_profile(tmp_path / "analysis-profile.json")
+    attached = schedule_api.attach_draft_analysis()
+    activated = schedule_api.activate_schedule(
+        schedule_api.ActivationRequest(
+            draft_hash=attached["draft"]["schedule_hash"]
+        )
+    )
+
+    assert attached["analysis_ready"] is True
+    assert attached["can_activate"] is True
+    assert activated["already_active"] is False
+    assert json.loads(schedule_path.read_text())["analysis"]
+
+
+def test_capture_only_draft_does_not_inherit_saved_analysis_profile(
+    tmp_path,
+    monkeypatch,
+):
+    draft_path, _, heartbeat = configure_paths(monkeypatch, tmp_path)
+    write_heartbeat(heartbeat)
+    save_analysis_profile(tmp_path / "analysis-profile.json")
+
+    review = schedule_api.create_schedule_draft(
+        schedule_form_data(analysis_enabled=False)
+    )
+
+    assert "analysis" not in review["draft"]["schedule"]
+    with pytest.raises(HTTPException, match="capture only"):
+        schedule_api.attach_draft_analysis()
 
 
 def test_activation_is_blocked_for_stale_scheduler_or_insufficient_storage(tmp_path, monkeypatch):
