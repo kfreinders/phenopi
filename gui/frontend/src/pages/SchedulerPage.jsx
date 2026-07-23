@@ -22,7 +22,7 @@ export function SchedulerPage() {
   const schedule = data.schedule;
   const storageRisk = schedule && data.storage && schedule.estimated_remaining_storage_bytes > data.storage.free_bytes;
   return <section className="scheduler-page" aria-live="polite">
-    <div className="scheduler-heading"><div><span className="eyebrow">Acquisition control</span><h2>Scheduler overview</h2><p>Live service health and planned experiment progress.</p></div></div>
+    <div className="scheduler-heading"><div><h2>Scheduler overview</h2><p>Live service health and planned experiment progress.</p></div></div>
     {data.status === "unavailable" && <div className="health-alert" role="alert">{data.message}</div>}
     {(data.schedule_error || data.schedule_is_last_reported || data.status === "invalid_schedule") && <div className="schedule-warning">{data.schedule_error ?? (data.schedule_is_last_reported ? "Showing the last reported schedule; live state cannot currently be confirmed." : "The edited schedule was rejected. The valid schedule remains active.")}</div>}
     {storageRisk && <div className="storage-risk" role="alert">Storage risk: remaining captures need approximately {formatBytes(schedule.estimated_remaining_storage_bytes)}, but only {formatBytes(data.storage.free_bytes)} is free.</div>}
@@ -74,7 +74,7 @@ function StopExperiment({ schedule, initiallyPending }) {
     }
   };
   return <section className="card stop-experiment">
-    <div><span className="eyebrow">Experiment control</span><h3>{title}</h3><p>{description}</p>{error && <small className="blocked-copy">{error.message}</small>}</div>
+    <div><h3>{title}</h3><p>{description}</p>{error && <small className="blocked-copy">{error.message}</small>}</div>
     {!confirming ? <button className="danger-button" disabled={pending || initiallyPending} onClick={() => setConfirming(true)}>{pending || initiallyPending ? (upcoming ? "Cancelling schedule…" : "Stopping experiment…") : title}</button> : <div className="stop-confirmation"><label><input type="checkbox" checked={accepted} onChange={event => setAccepted(event.target.checked)} /> {confirmation}</label><div><button className="secondary" onClick={() => { setConfirming(false); setAccepted(false); }}>{upcoming ? "Keep schedule" : "Keep running"}</button><button className="danger-button" disabled={!accepted || pending} onClick={stop}>{upcoming ? "Cancel experiment" : "Stop remaining captures"}</button></div></div>}
   </section>;
 }
