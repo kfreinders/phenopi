@@ -62,6 +62,7 @@ class RunArchive:
         self._lock = Lock()
         self._archive_lock = Lock()
         self._archive_thread: Thread | None = None
+        self._state = "active"
         self._initialize(schedule_data)
 
     def _initialize(self, schedule: dict[str, Any]) -> None:
@@ -74,6 +75,7 @@ class RunArchive:
                 raise ValueError("The dataset directory belongs to another run.")
             if manifest.get("schedule_hash") != self.schedule_hash:
                 raise ValueError("This run ID is already associated with another schedule.")
+            self._state = manifest.get("state", "active")
             return
         self.directory.mkdir(parents=True, exist_ok=True)
         manifest = {
@@ -112,8 +114,20 @@ class RunArchive:
         if state not in {"completed", "superseded", "cancelled"}:
             raise ValueError("Unsupported terminal run state.")
         with self._lock:
+            if state == "completed" and not self.manifest_path.exists():
+                # Older GUI versions removed the entire completed dataset.
+                # Nothing remains to finalize, and this must not block loading
+                # the operator's next schedule.
+                self._state = "deleted"
+                return
             manifest = self._read_manifest()
-            if manifest.get("state") in {"completed", "superseded", "cancelled"}:
+            if manifest.get("state") in {
+                "completed",
+                "superseded",
+                "cancelled",
+                "deleted",
+            }:
+                self._state = manifest["state"]
                 if manifest.get("state") == "completed":
                     self._start_download_archive()
                 return
@@ -124,6 +138,7 @@ class RunArchive:
                 self.manifest_path,
                 json.dumps(manifest, indent=2) + "\n",
             )
+            self._state = state
             if state == "completed":
                 self._start_download_archive()
 
@@ -238,6 +253,8 @@ class RunArchive:
         cutoff: datetime | None = None,
     ) -> None:
         """Record captures too old to be recovered by the scheduler."""
+        if self._state == "deleted":
+            return
         recorded = self.latest_events()
         missed_before = cutoff or now
         for scheduled_at in self.expected_times:

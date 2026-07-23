@@ -94,6 +94,50 @@ def test_deletion_removes_only_the_matching_dataset_and_zip(tmp_path):
 
     delete_experiment_data(tmp_path, schedule)
 
-    assert not run.directory.exists()
+    assert run.directory.exists()
     assert not run.archive_path.exists()
+    assert {path.name for path in run.directory.iterdir()} == {"run.json"}
+    manifest = json.loads(run.manifest_path.read_text())
+    assert manifest["state"] == "deleted"
+    assert manifest["deleted_at"] is not None
     assert unrelated.exists()
+
+    details = export_details(tmp_path, schedule)
+    assert details["data_present"] is False
+    assert details["archive_ready"] is False
+
+
+def test_deleted_run_does_not_block_replacement_schedule(tmp_path):
+    _, schedule, run = completed_dataset(tmp_path)
+    delete_experiment_data(tmp_path, schedule)
+
+    run.mark_ended("completed")
+    run.mark_ended("superseded", superseded_by=str(uuid4()))
+
+    assert json.loads(run.manifest_path.read_text())["state"] == "deleted"
+    assert not run.archive_path.exists()
+
+
+def test_deleted_run_stays_empty_after_scheduler_restart(tmp_path):
+    _, schedule, run = completed_dataset(tmp_path)
+    delete_experiment_data(tmp_path, schedule)
+
+    restarted = RunArchive(
+        tmp_path,
+        configured_schedule(schedule),
+        schedule["hash"],
+        [NOW],
+    )
+    restarted.record_unreported_past(NOW.replace(hour=13))
+
+    assert {path.name for path in restarted.directory.iterdir()} == {"run.json"}
+
+
+def test_legacy_fully_deleted_run_does_not_block_replacement(tmp_path):
+    _, _, run = completed_dataset(tmp_path)
+    run.archive_path.unlink()
+    for path in run.directory.iterdir():
+        path.unlink()
+    run.directory.rmdir()
+
+    run.mark_ended("completed")

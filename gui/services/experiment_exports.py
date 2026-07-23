@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 import shutil
 from typing import Any
 from uuid import UUID
 
 from scripts.scheduling.run_store import run_directory_name
+from scripts.scheduling.make_schedule import atomic_write_text
 
 
 class ExperimentExportError(ValueError):
@@ -61,7 +63,11 @@ def export_details(
         "state": manifest["state"] if manifest else "deleted",
         "archive_ready": archive_ready,
         "archive_size_bytes": archive.stat().st_size if archive_ready else None,
-        "data_present": directory.is_dir() and manifest is not None,
+        "data_present": (
+            directory.is_dir()
+            and manifest is not None
+            and manifest.get("state") != "deleted"
+        ),
     }
 
 
@@ -88,7 +94,19 @@ def delete_experiment_data(
     if archive.is_symlink():
         raise ExperimentExportError("The experiment archive path is unsafe.")
     archive.unlink(missing_ok=True)
-    shutil.rmtree(directory)
+    for path in directory.iterdir():
+        if path == directory / "run.json":
+            continue
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+    manifest["state"] = "deleted"
+    manifest["deleted_at"] = datetime.now(timezone.utc).isoformat()
+    atomic_write_text(
+        directory / "run.json",
+        json.dumps(manifest, indent=2) + "\n",
+    )
 
 
 def _read_matching_manifest(
