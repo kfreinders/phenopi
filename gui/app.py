@@ -5,8 +5,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from gui.config import APP_DIR
 from gui.routes import schedule_api, scheduler
+from phenopi.config import GUI_HOST, GUI_PORT, PROJECT_ROOT
 
 
 def _secure_response(response, path: str):
@@ -71,7 +71,7 @@ def create_app() -> FastAPI:
     app.include_router(schedule_api.router)
     app.include_router(scheduler.router)
 
-    react_dir = APP_DIR / "react-dist"
+    react_dir = PROJECT_ROOT / "gui" / "react-dist"
     assets_dir = react_dir / "assets"
     if assets_dir.exists():
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
@@ -95,8 +95,8 @@ app = create_app()
 def main() -> None:
     uvicorn.run(
         "gui.app:app",
-        host="0.0.0.0",
-        port=8000,
+        host=GUI_HOST,
+        port=GUI_PORT,
         reload=False,
     )
 

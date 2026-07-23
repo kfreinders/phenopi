@@ -5,10 +5,20 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 FRONTEND_DIR="$PROJECT_ROOT/gui/frontend"
-RUNTIME_DIR="$PROJECT_ROOT/runtime"
-OUTPUT_DIR="$PROJECT_ROOT/captures"
-PYTHON_BIN="${PHENOPI_PYTHON:-python3}"
-TIMEZONE="${PHENOPI_TIMEZONE:-Europe/Amsterdam}"
+export PHENOPI_ROOT="${PHENOPI_ROOT:-$PROJECT_ROOT}"
+export PHENOPI_RUNTIME_DIR="${PHENOPI_RUNTIME_DIR:-$PHENOPI_ROOT/runtime}"
+export PHENOPI_CAPTURE_DIR="${PHENOPI_CAPTURE_DIR:-$PHENOPI_ROOT/captures}"
+export PHENOPI_VENV_DIR="${PHENOPI_VENV_DIR:-$PHENOPI_ROOT/.venv}"
+export PHENOPI_PYTHON="${PHENOPI_PYTHON:-$PHENOPI_VENV_DIR/bin/python}"
+export PHENOPI_TIMEZONE="${PHENOPI_TIMEZONE:-Europe/Amsterdam}"
+export PHENOPI_GUI_HOST="${PHENOPI_GUI_HOST:-0.0.0.0}"
+export PHENOPI_GUI_PORT="${PHENOPI_GUI_PORT:-8000}"
+PYTHON_BIN="$PHENOPI_PYTHON"
+
+if [[ ! -x "$PYTHON_BIN" ]]; then
+  PYTHON_BIN="${PHENOPI_FALLBACK_PYTHON:-python3}"
+  export PHENOPI_PYTHON="$PYTHON_BIN"
+fi
 
 GUI_PID=""
 SCHEDULER_PID=""
@@ -40,7 +50,7 @@ command -v "$PYTHON_BIN" >/dev/null || {
   exit 1
 }
 
-mkdir -p "$RUNTIME_DIR" "$OUTPUT_DIR"
+mkdir -p "$PHENOPI_RUNTIME_DIR" "$PHENOPI_CAPTURE_DIR"
 
 echo "[deploy] Building React frontend"
 if [[ ! -d "$FRONTEND_DIR/node_modules" ]]; then
@@ -49,10 +59,9 @@ if [[ ! -d "$FRONTEND_DIR/node_modules" ]]; then
 fi
 npm --prefix "$FRONTEND_DIR" run build
 
-export PHENOPI_ROOT="$PROJECT_ROOT"
 export PYTHONUNBUFFERED=1
 
-echo "[deploy] Starting GUI at http://0.0.0.0:8000"
+echo "[deploy] Starting GUI at http://$PHENOPI_GUI_HOST:$PHENOPI_GUI_PORT"
 (
   cd "$PROJECT_ROOT"
   exec "$PYTHON_BIN" -m gui.app
@@ -62,13 +71,7 @@ GUI_PID=$!
 echo "[deploy] Starting scheduler"
 (
   cd "$PROJECT_ROOT"
-  exec "$PYTHON_BIN" -m scripts.scheduling.scheduler \
-    --schedule "$RUNTIME_DIR/schedule.json" \
-    --capture-script "$PROJECT_ROOT/scripts/capture/capture_once.py" \
-    --python-bin "$PYTHON_BIN" \
-    --output-dir "$OUTPUT_DIR" \
-    --runtime-dir "$RUNTIME_DIR" \
-    --timezone "$TIMEZONE"
+  exec "$PYTHON_BIN" -m scripts.scheduling.scheduler
 ) &
 SCHEDULER_PID=$!
 

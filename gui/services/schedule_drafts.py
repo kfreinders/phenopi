@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel
 
-from gui.config import DEFAULT_SCHEDULE_PATH, SCHEDULE_DRAFT_PATH
+from phenopi.config import DEFAULT_SCHEDULE_PATH, SCHEDULE_DRAFT_PATH
 from gui.services.schedule_builder import (
     PastStartDateError,
     SchedulePreview,
