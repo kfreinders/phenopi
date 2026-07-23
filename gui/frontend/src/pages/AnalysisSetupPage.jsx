@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { ErrorNotice, Loading } from "../components";
-import { detectAnalysisRoi, getAnalysisConfig, previewAnalysis, saveAnalysisProfile } from "../api";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { ErrorNotice, Loading, WorkflowSteps } from "../components";
+import { attachDraftAnalysis, detectAnalysisRoi, getAnalysisConfig, previewAnalysis, saveAnalysisProfile } from "../api";
 
 const stageLabels = {
   channel: ["LAB channel", "Values used for thresholding"],
@@ -9,6 +10,9 @@ const stageLabels = {
 };
 
 export function AnalysisSetupPage() {
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const scheduleWorkflow = params.get("workflow") === "schedule";
   const [config, setConfig] = useState(null);
   const [imageData, setImageData] = useState(null);
   const [fileName, setFileName] = useState("");
@@ -113,6 +117,22 @@ export function AnalysisSetupPage() {
     try {
       await saveAnalysisProfile(config, roi.definition);
       setSaved(true);
+      if (scheduleWorkflow) {
+        await attachDraftAnalysis();
+        navigate("/schedule/review");
+      }
+    } catch (reason) {
+      setError(reason);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const useSavedProfile = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await attachDraftAnalysis();
+      navigate("/schedule/review");
     } catch (reason) {
       setError(reason);
     } finally {
@@ -122,8 +142,10 @@ export function AnalysisSetupPage() {
   if (!config) return <Loading label="Loading analysis settings" />;
 
   return <section className="analysis-page">
-    <header className="react-page-heading"><h2>Analysis setup</h2><p>Tune plant segmentation using a representative calibration image.</p></header>
+    {scheduleWorkflow && <WorkflowSteps current={2} analysisEnabled />}
+    <header className="react-page-heading"><h2>{scheduleWorkflow ? "Calibrate canopy analysis" : "Analysis setup"}</h2><p>Tune plant segmentation using a representative calibration image.</p></header>
     <ErrorNotice error={error} />
+    {scheduleWorkflow && <section className={`card analysis-workflow-intro${saved ? " analysis-workflow-intro--saved" : ""}`}><div><span aria-hidden="true">{saved ? "✓" : "2"}</span><div><h3>{saved ? "A saved calibration is available" : "Calibration required"}</h3><p>{saved ? "Use it for this experiment if the camera, tray and lighting setup have not changed, or create a new calibration below." : "Canopy measurements cannot start until segmentation and the ROI grid have been calibrated."}</p></div></div>{saved && <button type="button" onClick={useSavedProfile} disabled={saving}>{saving ? "Attaching…" : "Use saved calibration"}</button>}</section>}
     <div className="analysis-setup-layout">
       <aside className="card analysis-controls">
         <div className="analysis-image-picker">
@@ -172,7 +194,7 @@ export function AnalysisSetupPage() {
           {roi && <article className="card analysis-stage analysis-stage--roi">
             <header><div><h3>Automatic ROI grid</h3><p>{roi.definition.rows} × {roi.definition.columns} reusable regions</p></div><span className="analysis-roi-ready">Detected</span></header>
             <div className="analysis-stage-image"><img src={roi.overlay} alt="Automatically detected PlantCV ROI grid" /></div>
-            <footer className="analysis-save-profile"><div><strong>{saved ? "Analysis setup saved" : "Ready to save"}</strong><p>{saved ? "New experiment schedules will use this calibration automatically." : "Save this calibration before creating the experiment schedule."}</p></div><button type="button" onClick={saveProfile} disabled={saving || saved}>{saving ? "Saving…" : saved ? "Saved" : "Save analysis setup"}</button></footer>
+            <footer className="analysis-save-profile"><div><strong>{saved ? "Analysis setup saved" : "Ready to save"}</strong><p>{scheduleWorkflow ? "This calibration will be stored with this experiment." : saved ? "New analysis-enabled experiments can use this calibration." : "Save this calibration for a future analysis-enabled experiment."}</p></div><button type="button" onClick={saveProfile} disabled={saving || saved}>{saving ? "Saving…" : saved ? "Saved" : scheduleWorkflow ? "Save and continue to review" : "Save analysis setup"}</button></footer>
           </article>}
         </div>}
       </section>

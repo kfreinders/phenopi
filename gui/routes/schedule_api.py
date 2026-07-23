@@ -41,6 +41,7 @@ def configure_schedule(edit: bool = False) -> dict:
         "form": loaded[0].form.form_arguments() if edit and loaded else form_defaults(),
         "minimum_start_date": date.today().isoformat(),
         "draft_state": "ready" if loaded else "none",
+        "analysis_profile_saved": ANALYSIS_PROFILE_PATH.exists(),
     }
 
 

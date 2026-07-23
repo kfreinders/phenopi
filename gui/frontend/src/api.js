@@ -42,3 +42,7 @@ export const deleteAnalysisProfile = () => api(
   "/api/analysis/profile",
   { method: "DELETE" },
 );
+export const attachDraftAnalysis = () => api(
+  "/api/schedule/draft/analysis",
+  { method: "POST" },
+);

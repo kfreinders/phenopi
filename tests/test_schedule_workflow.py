@@ -300,14 +300,30 @@ def test_schedule_api_routes_and_react_workflow_are_complete():
     assert str(app.url_path_for("configure_schedule")) == "/api/schedule/configure"
     assert str(app.url_path_for("create_schedule_draft")) == "/api/schedule/draft"
     assert str(app.url_path_for("get_schedule_draft")) == "/api/schedule/draft"
+    assert (
+        str(app.url_path_for("attach_draft_analysis"))
+        == "/api/schedule/draft/analysis"
+    )
     assert str(app.url_path_for("activate_schedule")) == "/api/schedule/activate"
     app_source = (FRONTEND / "App.jsx").read_text()
     activation = (FRONTEND / "pages" / "ActivationPage.jsx").read_text()
     scheduler = (FRONTEND / "pages" / "SchedulerPage.jsx").read_text()
     components = (FRONTEND / "components.jsx").read_text()
+    builder = (FRONTEND / "pages" / "ScheduleBuilderPage.jsx").read_text()
+    review = (FRONTEND / "pages" / "ScheduleReviewPage.jsx").read_text()
+    analysis = (FRONTEND / "pages" / "AnalysisSetupPage.jsx").read_text()
     assert "ScheduleBuilderPage" in app_source
     assert "ScheduleReviewPage" in app_source
     assert "ActivationPage" in app_source
+    assert "Canopy measurements" in builder
+    assert "Images only" in builder
+    assert "Analyze canopy" in builder
+    assert "Continue to calibration" in builder
+    assert "Canopy calibration required" in review
+    assert "Calibrate analysis" in review
+    assert "Use saved calibration" in analysis
+    assert "Save and continue to review" in analysis
+    assert '"Calibrate"' in components
     assert "schedule?.hash === expected" in activation
     assert "setCountdown(5)" in activation
     assert "Create another schedule" not in activation

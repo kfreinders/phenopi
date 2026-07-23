@@ -1,8 +1,10 @@
 import { NavLink } from "react-router-dom";
 
-export function WorkflowSteps({ current }) {
-  const steps = ["Configure", "Review", "Activate", "Confirmed"];
-  return <ol className="workflow-steps" aria-label="Schedule activation progress">
+export function WorkflowSteps({ current, analysisEnabled = false }) {
+  const steps = analysisEnabled
+    ? ["Configure", "Calibrate", "Review", "Activate", "Confirmed"]
+    : ["Configure", "Review", "Activate", "Confirmed"];
+  return <ol className="workflow-steps" style={{ "--workflow-step-count": steps.length }} aria-label="Schedule activation progress">
     {steps.map((label, index) => {
       const number = index + 1;
       const complete = number < current;
