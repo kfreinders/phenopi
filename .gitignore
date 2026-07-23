@@ -5,8 +5,14 @@ __pycache__/
 # Runtime files
 captures/
 runtime/
+results/
 
 # LaTeX output
 main.*
 !main.tex
 *.aux
+/captures_original
+
+# React frontend
+gui/frontend/node_modules/
+gui/react-dist/
