@@ -1,5 +1,8 @@
 from datetime import date
 
+import pytest
+from fastapi import HTTPException
+
 from gui.app import app
 from gui.routes import scheduler as scheduler_routes
 from gui.services.schedule_drafts import persist_schedule_draft
@@ -80,3 +83,54 @@ def test_scheduler_page_has_context_sensitive_next_actions():
     assert "Review draft" in source
     assert "Create next schedule" in source
     assert "Experiment finished with capture issues" in source
+
+
+def test_cancel_api_requires_a_healthy_matching_active_schedule(
+    tmp_path, monkeypatch
+):
+    command_path = tmp_path / "scheduler-command.json"
+    schedule_hash = "c" * 64
+    monkeypatch.setattr(scheduler_routes, "SCHEDULER_COMMAND_PATH", command_path)
+    monkeypatch.setattr(
+        scheduler_routes,
+        "read_scheduler_status",
+        lambda path: {
+            "status": "healthy",
+            "schedule": {"hash": schedule_hash, "lifecycle": "active"},
+        },
+    )
+
+    response = scheduler_routes.cancel_scheduled_experiment(
+        scheduler_routes.CancellationRequest(schedule_hash=schedule_hash)
+    )
+
+    assert response["accepted"] is True
+    assert command_path.exists()
+    assert scheduler_routes._cancellation_pending(schedule_hash) is True
+
+    with pytest.raises(HTTPException) as mismatch:
+        scheduler_routes.cancel_scheduled_experiment(
+            scheduler_routes.CancellationRequest(schedule_hash="d" * 64)
+        )
+    assert mismatch.value.status_code == 409
+
+
+def test_cancel_api_accepts_an_upcoming_schedule(tmp_path, monkeypatch):
+    command_path = tmp_path / "scheduler-command.json"
+    schedule_hash = "e" * 64
+    monkeypatch.setattr(scheduler_routes, "SCHEDULER_COMMAND_PATH", command_path)
+    monkeypatch.setattr(
+        scheduler_routes,
+        "read_scheduler_status",
+        lambda path: {
+            "status": "healthy",
+            "schedule": {"hash": schedule_hash, "lifecycle": "upcoming"},
+        },
+    )
+
+    response = scheduler_routes.cancel_scheduled_experiment(
+        scheduler_routes.CancellationRequest(schedule_hash=schedule_hash)
+    )
+
+    assert response["accepted"] is True
+    assert scheduler_routes._cancellation_pending(schedule_hash) is True

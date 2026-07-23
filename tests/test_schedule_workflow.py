@@ -192,9 +192,15 @@ def test_schedule_api_routes_and_react_workflow_are_complete():
     assert str(app.url_path_for("activate_schedule")) == "/api/schedule/activate"
     app_source = (FRONTEND / "App.jsx").read_text()
     activation = (FRONTEND / "pages" / "ActivationPage.jsx").read_text()
+    scheduler = (FRONTEND / "pages" / "SchedulerPage.jsx").read_text()
     assert "ScheduleBuilderPage" in app_source
     assert "ScheduleReviewPage" in app_source
     assert "ActivationPage" in app_source
     assert "schedule?.hash === expected" in activation
     assert "setCountdown(5)" in activation
     assert "Create another schedule" not in activation
+    assert "function StopExperiment" in scheduler
+    assert 'api("/api/scheduler/cancel"' in scheduler
+    assert "I understand that this experiment cannot be resumed." in scheduler
+    assert "Cancel scheduled experiment" in scheduler
+    assert "I understand that no captures will be taken" in scheduler

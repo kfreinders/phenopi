@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from gui.config import (
     SCHEDULE_DRAFT_PATH,
+    SCHEDULER_COMMAND_PATH,
     SCHEDULER_HEARTBEAT_PATH,
 )
 from gui.services.schedule_drafts import load_current_schedule_draft
@@ -11,9 +13,17 @@ from gui.services.scheduler_status import (
     read_scheduler_health,
     read_scheduler_status,
 )
+from scripts.scheduling.commands import (
+    read_schedule_cancellation,
+    request_schedule_cancellation,
+)
 
 
 router = APIRouter()
+
+
+class CancellationRequest(BaseModel):
+    schedule_hash: str
 
 
 def schedule_draft_state() -> str:
@@ -27,10 +37,47 @@ def schedule_draft_state() -> str:
 
 @router.get("/api/scheduler/status")
 def scheduler_status_api() -> dict:
+    status = read_scheduler_status(SCHEDULER_HEARTBEAT_PATH)
+    schedule_hash = (status.get("schedule") or {}).get("hash")
     return {
-        **read_scheduler_status(SCHEDULER_HEARTBEAT_PATH),
+        **status,
         "draft_state": schedule_draft_state(),
+        "cancellation_pending": _cancellation_pending(schedule_hash),
     }
+
+
+@router.post("/api/scheduler/cancel", status_code=202)
+def cancel_scheduled_experiment(request: CancellationRequest) -> dict:
+    status = read_scheduler_status(SCHEDULER_HEARTBEAT_PATH)
+    scheduled = status.get("schedule")
+    if status["status"] in {"stale", "unavailable"}:
+        raise HTTPException(
+            status_code=503,
+            detail="The scheduler is not responding. The experiment cannot be stopped safely.",
+        )
+    if not scheduled or scheduled.get("lifecycle") not in {"active", "upcoming"}:
+        raise HTTPException(
+            status_code=409,
+            detail="No active or upcoming experiment can be cancelled.",
+        )
+    if scheduled.get("hash") != request.schedule_hash:
+        raise HTTPException(
+            status_code=409,
+            detail="The active schedule changed. Refresh before stopping the experiment.",
+        )
+    try:
+        request_schedule_cancellation(SCHEDULER_COMMAND_PATH, request.schedule_hash)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"accepted": True, "schedule_hash": request.schedule_hash}
+
+
+def _cancellation_pending(schedule_hash: str | None) -> bool:
+    try:
+        request = read_schedule_cancellation(SCHEDULER_COMMAND_PATH)
+    except ValueError:
+        return False
+    return bool(request and request.schedule_hash == schedule_hash)
 
 
 @router.get("/api/scheduler/health")

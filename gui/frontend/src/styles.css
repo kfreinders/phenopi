@@ -12,4 +12,11 @@
 .react-form-error { margin-top: 1rem; }
 .activity-hours { min-height: 4.3rem; }
 .recent-capture { grid-template-columns: minmax(6rem, auto) minmax(11rem, auto) 1fr; }
+.stop-experiment { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; margin: 0; border-color: #fecdca; background: #fffafa; }
+.stop-experiment h3 { margin: .25rem 0; color: var(--red); }
+.stop-experiment p { margin: 0; }
+.stop-confirmation { display: grid; justify-items: end; gap: .7rem; }
+.stop-confirmation label { flex-direction: row; align-items: center; font-size: .9rem; }
+.stop-confirmation > div { display: flex; gap: .65rem; }
+@media (max-width: 760px) { .stop-experiment { align-items: flex-start; flex-direction: column; } .stop-confirmation { justify-items: start; } }
 @media (prefers-reduced-motion: reduce) { .react-spinner { animation: none; } }

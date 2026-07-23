@@ -101,11 +101,11 @@ class RunArchive:
         return manifest
 
     def mark_ended(self, state: str, *, superseded_by: str | None = None) -> None:
-        if state not in {"completed", "superseded"}:
+        if state not in {"completed", "superseded", "cancelled"}:
             raise ValueError("Unsupported terminal run state.")
         with self._lock:
             manifest = self._read_manifest()
-            if manifest.get("state") in {"completed", "superseded"}:
+            if manifest.get("state") in {"completed", "superseded", "cancelled"}:
                 return
             manifest["state"] = state
             manifest["ended_at"] = datetime.now(timezone.utc).isoformat()

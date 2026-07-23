@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import { api } from "../api";
 import { ErrorNotice, Loading } from "../components";
 import { useSchedulerStatus } from "../hooks";
 import { formatBytes, formatDateTime, relativeFutureTime } from "../format";
@@ -44,7 +46,37 @@ function Dashboard({ data }) {
     <CaptureResults summary={data.capture_summary} recent={data.recent_captures ?? []} />
     <section className="card overview-card"><div className="section-heading"><div><h3>Experiment timeline</h3><p>Planned progress across each experiment day.</p></div></div><div className="experiment-days">{s.days.map(day => <div className={`experiment-day experiment-day--${day.status}`} title={`${day.elapsed_captures} of ${day.total_captures} captures elapsed`} key={day.number}><strong>Day {day.number}</strong><span>{new Date(`${day.date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span></div>)}</div><div className="day-legend"><span className="complete">Complete</span><span className="current">Current</span><span className="upcoming">Upcoming</span></div></section>
     <DailyActivity schedule={s} />
+    <StopExperiment schedule={s} initiallyPending={data.cancellation_pending} />
   </div>;
+}
+
+function StopExperiment({ schedule, initiallyPending }) {
+  const [confirming, setConfirming] = useState(false);
+  const [accepted, setAccepted] = useState(false);
+  const [pending, setPending] = useState(initiallyPending);
+  const [error, setError] = useState(null);
+  if (!["active", "upcoming"].includes(schedule.lifecycle)) return null;
+  const upcoming = schedule.lifecycle === "upcoming";
+  const title = upcoming ? "Cancel scheduled experiment" : "Stop experiment";
+  const description = upcoming
+    ? "Prevent this experiment from starting. Its schedule will be archived."
+    : "Cancel all remaining captures while preserving data already collected.";
+  const confirmation = upcoming
+    ? "I understand that no captures will be taken for this experiment."
+    : "I understand that this experiment cannot be resumed.";
+  const stop = async () => {
+    setPending(true); setError(null);
+    try {
+      await api("/api/scheduler/cancel", { method: "POST", body: JSON.stringify({ schedule_hash: schedule.hash }) });
+      setConfirming(false);
+    } catch (reason) {
+      setPending(false); setError(reason);
+    }
+  };
+  return <section className="card stop-experiment">
+    <div><span className="eyebrow">Experiment control</span><h3>{title}</h3><p>{description}</p>{error && <small className="blocked-copy">{error.message}</small>}</div>
+    {!confirming ? <button className="danger-button" disabled={pending || initiallyPending} onClick={() => setConfirming(true)}>{pending || initiallyPending ? (upcoming ? "Cancelling schedule…" : "Stopping experiment…") : title}</button> : <div className="stop-confirmation"><label><input type="checkbox" checked={accepted} onChange={event => setAccepted(event.target.checked)} /> {confirmation}</label><div><button className="secondary" onClick={() => { setConfirming(false); setAccepted(false); }}>{upcoming ? "Keep schedule" : "Keep running"}</button><button className="danger-button" disabled={!accepted || pending} onClick={stop}>{upcoming ? "Cancel experiment" : "Stop remaining captures"}</button></div></div>}
+  </section>;
 }
 
 function CaptureResults({ summary, recent }) {

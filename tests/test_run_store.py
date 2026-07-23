@@ -111,3 +111,14 @@ def test_run_can_be_marked_superseded(tmp_path):
     assert manifest["state"] == "superseded"
     assert manifest["ended_at"] is not None
     assert manifest["superseded_by"] is not None
+
+
+def test_run_can_be_marked_cancelled(tmp_path):
+    archive = RunArchive(tmp_path, schedule(), "a" * 64, [NOW])
+
+    archive.mark_ended("cancelled")
+
+    manifest = json.loads(archive.manifest_path.read_text())
+    assert manifest["state"] == "cancelled"
+    assert manifest["ended_at"] is not None
+    assert manifest["superseded_by"] is None

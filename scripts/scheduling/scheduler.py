@@ -16,6 +16,11 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.blocking import BlockingScheduler
 
 from .config import SchedulerConfig, default_scheduler_config
+from .commands import (
+    SCHEDULER_COMMAND_FILENAME,
+    clear_scheduler_command,
+    read_schedule_cancellation,
+)
 from .heartbeat import HEARTBEAT_INTERVAL_SECONDS, SchedulerHeartbeat
 from .schedule import Schedule
 from .schedule_validation import (
@@ -295,6 +300,46 @@ def poll_schedule_for_changes(
     scheduler.shutdown(wait=False)
 
 
+def poll_scheduler_commands(
+    scheduler: BlockingScheduler,
+    config: SchedulerConfig,
+    active_schedule_hash: str,
+    heartbeat: SchedulerHeartbeat | None = None,
+    run_archive: RunArchive | None = None,
+) -> None:
+    """Stop the active schedule after accepting a matching cancellation request."""
+    command_path = config.runtime_dir / SCHEDULER_COMMAND_FILENAME
+    try:
+        request = read_schedule_cancellation(command_path)
+    except ValueError as exc:
+        clear_scheduler_command(command_path)
+        print(f"[scheduler] Ignoring invalid scheduler command: {exc}")
+        return
+    if request is None:
+        return
+    if request.schedule_hash != active_schedule_hash:
+        clear_scheduler_command(command_path)
+        print("[scheduler] Ignoring cancellation request for an inactive schedule.")
+        return
+
+    if run_archive is not None:
+        run_archive.mark_ended("cancelled")
+    cancelled_path = config.runtime_dir / (
+        f"cancelled-schedule-{active_schedule_hash[:12]}.json"
+    )
+    config.schedule_path.replace(cancelled_path)
+    clear_scheduler_command(command_path)
+    if heartbeat is not None:
+        heartbeat.set_capture_status_provider(None)
+        heartbeat.set_state(
+            "waiting_for_schedule",
+            "The active experiment was stopped by the operator.",
+            schedule=None,
+        )
+    print("[scheduler] Active experiment stopped by operator request.")
+    scheduler.shutdown(wait=False)
+
+
 def jobstore_path_for_schedule(
     runtime_dir: Path,
     schedule_hash: str,
@@ -424,6 +469,16 @@ def run_scheduler_until_reload(
         seconds=config.reload_interval.total_seconds(),
         args=[scheduler, config, schedule_hash, heartbeat, run_archive],
         id="poll_schedule",
+        max_instances=1,
+        replace_existing=True,
+        jobstore="control",
+    )
+    scheduler.add_job(
+        poll_scheduler_commands,
+        trigger="interval",
+        seconds=2,
+        args=[scheduler, config, schedule_hash, heartbeat, run_archive],
+        id="poll_commands",
         max_instances=1,
         replace_existing=True,
         jobstore="control",

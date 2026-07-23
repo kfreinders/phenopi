@@ -21,3 +21,4 @@ SCHEDULE_DRAFT_PATH = PROJECT_ROOT / "runtime" / "schedule-draft.json"
 SCHEDULER_HEARTBEAT_PATH = (
     PROJECT_ROOT / "runtime" / "scheduler-heartbeat.json"
 )
+SCHEDULER_COMMAND_PATH = PROJECT_ROOT / "runtime" / "scheduler-command.json"

@@ -387,6 +387,8 @@ def test_scheduler_setup_adds_control_and_future_capture_jobs(
 
     jobs_by_id = {kwargs["id"]: kwargs for _, kwargs in fake_scheduler.jobs}
     assert "poll_schedule" in jobs_by_id
+    assert "poll_commands" in jobs_by_id
+    assert jobs_by_id["poll_commands"]["seconds"] == 2
     assert "write_heartbeat" in jobs_by_id
     capture_jobs = [
         kwargs for _, kwargs in fake_scheduler.jobs
