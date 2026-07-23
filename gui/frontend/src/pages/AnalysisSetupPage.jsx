@@ -27,6 +27,7 @@ export function AnalysisSetupPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const requestNumber = useRef(0);
+  const roiResult = useRef(null);
 
   useEffect(() => {
     getAnalysisConfig()
@@ -52,6 +53,21 @@ export function AnalysisSetupPage() {
     }, 350);
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [imageData, config, analysisCrop, maskExclusions]);
+
+  useEffect(() => {
+    if (!roi || !roiResult.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      roiResult.current?.focus({ preventScroll: true });
+      const reducedMotion = window.matchMedia?.(
+        "(prefers-reduced-motion: reduce)"
+      ).matches;
+      roiResult.current?.scrollIntoView({
+        behavior: reducedMotion ? "auto" : "smooth",
+        block: "start",
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [roi]);
 
   const selectImage = event => {
     const file = event.target.files?.[0];
@@ -158,19 +174,28 @@ export function AnalysisSetupPage() {
           {fileName && <small title={fileName}>{fileName}</small>}
         </div>
         <fieldset disabled={!imageData}>
-          <legend>Segmentation</legend>
-          <label className="analysis-control"><span>LAB channel <output>{config.sepchannel.toUpperCase()}</output></span>
+          <legend>Image orientation</legend>
+          <p className="analysis-control-group-note">Rotation is applied before cropping or segmentation and updates every preview.</p>
+          <RangeControl label="Rotation" value={config.rotate_angle} min={-10} max={10} step={0.1} suffix="°" onChange={value => update("rotate_angle", value)} />
+        </fieldset>
+        <fieldset disabled={!imageData}>
+          <legend>LAB channel</legend>
+          <p className="analysis-control-group-note">Choose the color component shown in the <strong>LAB channel</strong> preview. This becomes the input for thresholding.</p>
+          <label className="analysis-control"><span>Channel <output>{config.sepchannel.toUpperCase()}</output></span>
             <select value={config.sepchannel} onChange={event => update("sepchannel", event.target.value)}>
               <option value="l">L — lightness</option><option value="a">A — green to magenta</option><option value="b">B — blue to yellow</option>
             </select>
           </label>
+        </fieldset>
+        <fieldset disabled={!imageData}>
+          <legend>Plant mask</legend>
+          <p className="analysis-control-group-note">These controls determine which pixels remain white in the <strong>Plant mask</strong> preview.</p>
           <RangeControl label="Threshold" value={config.threshold} min={0} max={255} onChange={value => update("threshold", value)} />
           <RangeControl label="Remove small regions" value={config.fill_size} min={0} max={2000} step={10} onChange={value => update("fill_size", value)} />
-          <RangeControl label="Rotation" value={config.rotate_angle} min={-10} max={10} step={0.1} suffix="°" onChange={value => update("rotate_angle", value)} />
         </fieldset>
         <fieldset disabled={!imageData}>
           <legend>ROI grid</legend>
-          <p className="analysis-roi-note">Draw the analysis area around the tray first, excluding labels, calibration cards and surrounding equipment.</p>
+          <p className="analysis-control-group-note">Set the tray layout, then detect plant regions from the edited mask. Draw the analysis area around the tray first.</p>
           <div className="analysis-grid-size">
             <label>Rows<input type="number" min="1" max="30" value={config.roi_rows} onChange={event => update("roi_rows", Number(event.target.value))} /></label>
             <label>Columns<input type="number" min="1" max="30" value={config.roi_cols} onChange={event => update("roi_cols", Number(event.target.value))} /></label>
@@ -191,7 +216,7 @@ export function AnalysisSetupPage() {
             <header><div><h3>{title}</h3><p>{description}</p></div>{loading && key === "overlay" && <span className="analysis-updating">Updating…</span>}</header>
             {key === "mask" ? <MaskEditor image={stages.mask} strokes={maskExclusions} setStrokes={updateMaskExclusions} radius={brushRadius} setRadius={setBrushRadius} /> : <div className="analysis-stage-image"><img src={stages[key]} alt={`${title} analysis preview`} /></div>}
           </article>)}
-          {roi && <article className="card analysis-stage analysis-stage--roi">
+          {roi && <article ref={roiResult} className="card analysis-stage analysis-stage--roi" tabIndex="-1">
             <header><div><h3>Automatic ROI grid</h3><p>{roi.definition.rows} × {roi.definition.columns} reusable regions</p></div><span className="analysis-roi-ready">Detected</span></header>
             <div className="analysis-stage-image"><img src={roi.overlay} alt="Automatically detected PlantCV ROI grid" /></div>
             <footer className="analysis-save-profile"><div><strong>{saved ? "Analysis setup saved" : "Ready to save"}</strong><p>{scheduleWorkflow ? "This calibration will be stored with this experiment." : saved ? "New analysis-enabled experiments can use this calibration." : "Save this calibration for a future analysis-enabled experiment."}</p></div><button type="button" onClick={saveProfile} disabled={saving || saved}>{saving ? "Saving…" : saved ? "Saved" : scheduleWorkflow ? "Save and continue to review" : "Save analysis setup"}</button></footer>

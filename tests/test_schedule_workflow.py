@@ -325,6 +325,9 @@ def test_schedule_api_routes_and_react_workflow_are_complete():
     assert "Save and continue to review" in analysis
     assert "Back to configure" in analysis
     assert 'to="/schedule/edit"' in analysis
+    assert "These controls determine which pixels remain white" in analysis
+    assert "scrollIntoView" in analysis
+    assert "prefers-reduced-motion" in analysis
     assert '"Calibrate"' in components
     assert "schedule?.hash === expected" in activation
     assert "setCountdown(5)" in activation
