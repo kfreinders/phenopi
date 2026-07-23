@@ -25,3 +25,8 @@ export async function api(path, options = {}) {
 
 export const getSchedulerStatus = () => api("/api/scheduler/status");
 export const getSchedulerHealth = () => api("/api/scheduler/health");
+export const getAnalysisConfig = () => api("/api/analysis/configure");
+export const previewAnalysis = (imageData, config, signal) => api(
+  "/api/analysis/preview",
+  { method: "POST", body: JSON.stringify({ image_data: imageData, config }), signal },
+);
