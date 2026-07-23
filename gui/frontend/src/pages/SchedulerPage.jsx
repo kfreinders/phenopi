@@ -81,8 +81,22 @@ function StopExperiment({ schedule, initiallyPending }) {
 
 function CaptureResults({ summary, recent }) {
   if (!summary) return null;
+  const results = [
+    { key: "succeeded", label: "Successful", value: summary.succeeded, kind: "success" },
+    { key: "failed", label: "Failed", value: summary.failed, kind: "failure" },
+    { key: "missed", label: "Missed", value: summary.missed, kind: "missed" },
+    { key: "pending", label: "Result pending", value: summary.elapsed_unreported, kind: "pending" },
+    { key: "remaining", label: "Remaining", value: summary.remaining, kind: "remaining" },
+  ];
+  const total = summary.total || results.reduce((sum, result) => sum + result.value, 0);
+  const visibleResults = results.filter(result => result.key !== "pending" || result.value > 0);
+  const percentage = value => total ? (value / total) * 100 : 0;
+  const distribution = results.map(result => `${result.label}: ${result.value}`).join(", ");
   return <section className="card capture-results"><div className="section-heading"><div><h3>Capture results</h3><p>Recorded outcomes for the current experiment run.</p></div></div><div className="capture-result-grid">
-    {[["success", "Successful", summary.succeeded], ["failure", "Failed", summary.failed], ["missed", "Missed", summary.missed], ["", "Remaining", summary.remaining], ["warning", "Awaiting result", summary.elapsed_unreported]].map(([kind, label, value]) => <div className={`capture-result${kind ? ` capture-result--${kind}` : ""}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}
+    <div className="capture-result-bar" role="img" aria-label={`${total} total captures. ${distribution}.`}>
+      {results.filter(result => result.value > 0).map(result => <span className={`capture-result-segment capture-result-segment--${result.kind}`} style={{ flexBasis: `${percentage(result.value)}%` }} title={`${result.label}: ${result.value} (${percentage(result.value).toFixed(1)}%)`} key={result.key} />)}
+    </div>
+    <div className="capture-result-legend">{visibleResults.map(result => <div className={`capture-result-key capture-result-key--${result.kind}`} key={result.key}><span className="capture-result-swatch" aria-hidden="true" /><span>{result.label}</span><strong>{result.value}</strong><small>{percentage(result.value).toFixed(1)}%</small></div>)}</div>
   </div>{recent.length > 0 && <div className="recent-captures-shell"><h4>Recent outcomes</h4><div className="recent-captures">{recent.map((item, index) => <div className={`recent-capture recent-capture--${item.status}`} key={`${item.scheduled_at}-${index}`}><strong>{item.status}</strong><span>{formatDateTime(item.scheduled_at)}</span><small>{item.message}</small></div>)}</div></div>}</section>;
 }
 

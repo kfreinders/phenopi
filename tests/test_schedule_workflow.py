@@ -226,3 +226,6 @@ def test_schedule_api_routes_and_react_workflow_are_complete():
     assert "I understand that this experiment cannot be resumed." in scheduler
     assert "Cancel scheduled experiment" in scheduler
     assert "I understand that no captures will be taken" in scheduler
+    assert "capture-result-bar" in scheduler
+    assert "Result pending" in scheduler
+    assert 'role="img"' in scheduler
