@@ -9,7 +9,12 @@ from gui.services.schedule_drafts import persist_schedule_draft
 from gui.services.schedule_form import ScheduleFormData
 
 
-FRONTEND = app_dir = __import__("gui.config", fromlist=["APP_DIR"]).APP_DIR / "frontend" / "src"
+FRONTEND = (
+    __import__("phenopi.config", fromlist=["PROJECT_ROOT"]).PROJECT_ROOT
+    / "gui"
+    / "frontend"
+    / "src"
+)
 
 
 def draft_form() -> ScheduleFormData:

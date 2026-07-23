@@ -5,13 +5,13 @@ import pytest
 from fastapi import HTTPException
 
 from gui.app import app
-from gui.config import APP_DIR
+from phenopi.config import PROJECT_ROOT
 from gui.routes import schedule_api
 from gui.services.schedule_drafts import persist_schedule_draft
 from gui.services.schedule_form import ScheduleFormData
 
 
-FRONTEND = APP_DIR / "frontend" / "src"
+FRONTEND = PROJECT_ROOT / "gui" / "frontend" / "src"
 
 
 def schedule_form_data(**updates) -> ScheduleFormData:

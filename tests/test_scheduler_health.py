@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from gui.app import app
-from gui.config import APP_DIR
+from phenopi.config import PROJECT_ROOT
 from gui.services.scheduler_status import (
     build_daily_activity,
     build_schedule_overview,
@@ -16,6 +16,7 @@ from scripts.scheduling.heartbeat import SchedulerHeartbeat
 
 
 NOW = datetime(2026, 7, 18, 12, 0, tzinfo=timezone.utc)
+APP_DIR = PROJECT_ROOT / "gui"
 
 
 def write_heartbeat(
