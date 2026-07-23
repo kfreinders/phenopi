@@ -166,30 +166,61 @@ function CropSelector({ image, crop, onChange }) {
       y: Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height)),
     };
   };
-  const rectangle = (start, end) => ({
-    x: Math.min(start.x, end.x),
-    y: Math.min(start.y, end.y),
-    width: Math.abs(end.x - start.x),
-    height: Math.abs(end.y - start.y),
-  });
   const start = event => {
+    const action = event.target.dataset.cropAction;
+    if (!action) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    const point = position(event);
-    drag.current = { point, previous: crop };
+    drag.current = {
+      action,
+      handle: event.target.dataset.cropHandle,
+      point: position(event),
+      crop,
+    };
   };
   const move = event => {
     if (!drag.current) return;
-    onChange(rectangle(drag.current.point, position(event)));
+    const point = position(event);
+    onChange(adjustCrop(
+      drag.current.crop,
+      drag.current.action,
+      drag.current.handle,
+      point.x - drag.current.point.x,
+      point.y - drag.current.point.y,
+    ));
   };
-  const finish = event => {
-    if (!drag.current) return;
-    const next = rectangle(drag.current.point, position(event));
-    const previous = drag.current.previous;
+  const finish = () => {
     drag.current = null;
-    onChange(next.width >= 0.02 && next.height >= 0.02 ? next : previous);
   };
   return <div ref={element} className="analysis-crop-canvas" onPointerDown={start} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish}>
     <img src={image} alt="Calibration image for selecting the analysis area" draggable={false} />
-    <span className="analysis-crop-selection" style={{ left: `${crop.x * 100}%`, top: `${crop.y * 100}%`, width: `${crop.width * 100}%`, height: `${crop.height * 100}%` }}><i /><i /><i /><i /></span>
+    <span className="analysis-crop-selection" data-crop-action="move" style={{ left: `${crop.x * 100}%`, top: `${crop.y * 100}%`, width: `${crop.width * 100}%`, height: `${crop.height * 100}%` }}>
+      <i data-crop-action="resize" data-crop-handle="nw" /><i data-crop-action="resize" data-crop-handle="ne" /><i data-crop-action="resize" data-crop-handle="se" /><i data-crop-action="resize" data-crop-handle="sw" />
+    </span>
   </div>;
+}
+
+export function adjustCrop(crop, action, handle, deltaX, deltaY, minimum = 0.02) {
+  const clamp = (value, lower, upper) => Math.max(lower, Math.min(upper, value));
+  const normalized = value => Math.round(value * 1_000_000) / 1_000_000;
+  if (action === "move") {
+    return {
+      ...crop,
+      x: normalized(clamp(crop.x + deltaX, 0, 1 - crop.width)),
+      y: normalized(clamp(crop.y + deltaY, 0, 1 - crop.height)),
+    };
+  }
+  let left = crop.x;
+  let right = crop.x + crop.width;
+  let top = crop.y;
+  let bottom = crop.y + crop.height;
+  if (handle?.includes("w")) left = clamp(left + deltaX, 0, right - minimum);
+  if (handle?.includes("e")) right = clamp(right + deltaX, left + minimum, 1);
+  if (handle?.includes("n")) top = clamp(top + deltaY, 0, bottom - minimum);
+  if (handle?.includes("s")) bottom = clamp(bottom + deltaY, top + minimum, 1);
+  return {
+    x: normalized(left),
+    y: normalized(top),
+    width: normalized(right - left),
+    height: normalized(bottom - top),
+  };
 }
