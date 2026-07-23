@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCaptureProgress } from "./SchedulerPage";
+import { buildCaptureProgress, easeOutCubic } from "./SchedulerPage";
 
 const capture = (time, replicate, status) => ({
   time,
@@ -44,5 +44,13 @@ describe("daily capture progress", () => {
     expect(result.points[0].captures[1].replicate).toBe(2);
     expect(result.next.time).toBe("16:05:30");
     expect(result.next.percent).toBe(0);
+  });
+});
+
+describe("schedule progress animation", () => {
+  it("eases toward and finishes at the exact target", () => {
+    expect(easeOutCubic(0)).toBe(0);
+    expect(easeOutCubic(0.5)).toBeCloseTo(0.875);
+    expect(easeOutCubic(1)).toBe(1);
   });
 });
