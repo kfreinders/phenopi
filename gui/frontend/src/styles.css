@@ -75,6 +75,16 @@
 .analysis-roi-ready { padding: .3rem .55rem; border-radius: 999px; color: #067647; background: #dcfae6; font-size: .74rem; font-weight: 750; }
 .analysis-save-profile { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem; border-top: 1px solid var(--line); background: #f6fef9; }
 .analysis-save-profile p { margin: .2rem 0 0; color: var(--muted); font-size: .8rem; }
+.analysis-progress-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 1rem 2rem; }
+.analysis-progress-card h3, .analysis-progress-card p { margin: 0; }
+.analysis-progress-card h3 { margin-top: .25rem; }
+.analysis-progress-card p { margin-top: .25rem; color: var(--muted); font-size: .86rem; }
+.analysis-progress-summary { display: grid; justify-items: end; }
+.analysis-progress-summary strong { color: var(--blue-dark); font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+.analysis-progress-summary span, .analysis-progress-summary small { color: var(--muted); font-size: .76rem; }
+.analysis-progress-summary small { color: #b42318; }
+.analysis-progress-meter { grid-column: 1 / -1; height: .45rem; overflow: hidden; border-radius: 999px; background: #e8edf3; }
+.analysis-progress-meter i { display: block; height: 100%; border-radius: inherit; background: #12b76a; transition: width 240ms ease; }
 .analysis-stage--crop { grid-column: 1 / -1; }
 .analysis-crop-reset { padding: .45rem .65rem; }
 .analysis-crop-canvas { position: relative; overflow: hidden; background: #111827; touch-action: none; user-select: none; line-height: 0; }
@@ -101,4 +111,6 @@
   .analysis-stage-grid { grid-template-columns: 1fr; }
   .analysis-mask-tools { align-items: stretch; flex-direction: column; }
   .analysis-mask-tools label { width: 100%; margin: 0; }
+  .analysis-progress-card { grid-template-columns: 1fr; }
+  .analysis-progress-summary { justify-items: start; }
 }
