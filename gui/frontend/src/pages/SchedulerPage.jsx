@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
-import { ErrorNotice, Loading } from "../components";
+import { buildTimelineTicks, ErrorNotice, Loading } from "../components";
 import { useSchedulerStatus } from "../hooks";
 import { formatBytes, formatDateTime, relativeFutureTime } from "../format";
 
@@ -32,22 +32,22 @@ export function SchedulerPage() {
 }
 
 function Dashboard({ data }) {
-  const s = data.schedule; const storage = data.storage; const capture = data.last_capture;
+  const s = data.schedule; const storage = data.storage;
   const details = [s.run?.researcher, s.run?.notes].filter(Boolean).join(" · ");
   return <div id="schedule-dashboard">
-    <section className="schedule-hero card"><div className="schedule-identity"><span className={`lifecycle-badge lifecycle-badge--${s.lifecycle}`}>{lifecycleLabels[s.lifecycle] ?? s.lifecycle}</span><h3>{s.run?.name ?? (s.lifecycle === "finished" ? "Completed experiment schedule" : "Current experiment schedule")}</h3><p>{s.start_date} → {s.end_date} · {s.num_days} day{s.num_days === 1 ? "" : "s"}</p>{details && <p className="schedule-run-details">{details}</p>}</div>
+    <section className="schedule-hero card"><div className="schedule-identity"><span className={`lifecycle-badge lifecycle-badge--${s.lifecycle}`}>{lifecycleLabels[s.lifecycle] ?? s.lifecycle}</span><h3>{s.run?.name ?? (s.lifecycle === "finished" ? "Completed experiment schedule" : "Current experiment schedule")}</h3><p>{s.start_date} → {s.end_date} · {s.num_days} day{s.num_days === 1 ? "" : "s"}</p><p className="schedule-finish"><span>Finishes at</span><strong>{formatDateTime(s.last_capture_at)}</strong></p>{details && <p className="schedule-run-details">{details}</p>}<ScheduleStorage storage={storage} /></div>
       <div className="progress-ring" style={{ "--progress": `${s.progress_percent * 3.6}deg` }} role="img" aria-label={`${s.progress_percent}% planned schedule progress`}><div><strong>{s.progress_percent.toFixed(1)}%</strong><span>{s.elapsed_captures} / {s.total_captures} planned elapsed</span><small>{s.current_day ? `Day ${s.current_day} of ${s.num_days}` : s.lifecycle === "finished" ? "Schedule complete" : `${s.num_days} scheduled days`}</small></div></div></section>
-    <section className="metric-grid" aria-label="Schedule statistics">
-      <article><span>Next capture</span><strong>{formatDateTime(s.next_capture_at)}</strong><small>{relativeFutureTime(s.next_capture_at)}</small></article>
-      <article><span>Final capture</span><strong>{formatDateTime(s.last_capture_at)}</strong></article>
-      <article className={capture ? `metric-state metric-state--${capture.status}` : ""}><span>Latest actual capture</span><strong>{capture ? capture.status[0].toUpperCase() + capture.status.slice(1) : "No result yet"}</strong><small>{capture ? formatDateTime(capture.scheduled_at) : "Waiting for the first capture"}</small></article>
-      <article className={storage?.used_percent >= 95 ? "metric-state metric-state--critical" : storage?.used_percent >= 90 ? "metric-state metric-state--warning" : ""}><span>Capture storage</span><strong>{storage ? `${formatBytes(storage.free_bytes)} free` : "Unavailable"}</strong><small>{storage ? `${storage.used_percent.toFixed(1)}% used` : "Storage telemetry unavailable"}</small>{storage && <div className={`storage-meter${storage.used_percent >= 95 ? " storage-meter--critical" : storage.used_percent >= 90 ? " storage-meter--warning" : ""}`} role="progressbar" aria-valuenow={storage.used_percent}><i className="storage-meter-fill" style={{ width: `${Math.min(100, storage.used_percent)}%` }} /></div>}</article>
-    </section>
-    <CaptureResults summary={data.capture_summary} recent={data.recent_captures ?? []} />
+    <CaptureResults summary={data.capture_summary} dailyProgress={data.daily_capture_progress} />
     <section className="card overview-card"><div className="section-heading"><div><h3>Experiment timeline</h3><p>Planned progress across each experiment day.</p></div></div><div className="experiment-days">{s.days.map(day => <div className={`experiment-day experiment-day--${day.status}`} title={`${day.elapsed_captures} of ${day.total_captures} captures elapsed`} key={day.number}><strong>Day {day.number}</strong><span>{new Date(`${day.date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span></div>)}</div><div className="day-legend"><span className="complete">Complete</span><span className="current">Current</span><span className="upcoming">Upcoming</span></div></section>
     <DailyActivity schedule={s} />
     <StopExperiment schedule={s} initiallyPending={data.cancellation_pending} />
   </div>;
+}
+
+function ScheduleStorage({ storage }) {
+  if (!storage) return <div className="schedule-storage"><span>Capture storage unavailable</span></div>;
+  const state = storage.used_percent >= 95 ? "critical" : storage.used_percent >= 90 ? "warning" : "normal";
+  return <div className={`schedule-storage schedule-storage--${state}`}><div><span>Capture storage</span><strong>{formatBytes(storage.free_bytes)} free</strong><small>{storage.used_percent.toFixed(1)}% used</small></div><div className={`storage-meter${state === "critical" ? " storage-meter--critical" : state === "warning" ? " storage-meter--warning" : ""}`} role="progressbar" aria-label={`${storage.used_percent.toFixed(1)}% of capture storage used`} aria-valuenow={storage.used_percent} aria-valuemin="0" aria-valuemax="100"><i className="storage-meter-fill" style={{ width: `${Math.min(100, storage.used_percent)}%` }} /></div></div>;
 }
 
 function StopExperiment({ schedule, initiallyPending }) {
@@ -79,7 +79,7 @@ function StopExperiment({ schedule, initiallyPending }) {
   </section>;
 }
 
-function CaptureResults({ summary, recent }) {
+function CaptureResults({ summary, dailyProgress }) {
   if (!summary) return null;
   const results = [
     { key: "succeeded", label: "Successful", value: summary.succeeded, kind: "success" },
@@ -97,7 +97,60 @@ function CaptureResults({ summary, recent }) {
       {results.filter(result => result.value > 0).map(result => <span className={`capture-result-segment capture-result-segment--${result.kind}`} style={{ flexBasis: `${percentage(result.value)}%` }} title={`${result.label}: ${result.value} (${percentage(result.value).toFixed(1)}%)`} key={result.key} />)}
     </div>
     <div className="capture-result-legend">{visibleResults.map(result => <div className={`capture-result-key capture-result-key--${result.kind}`} key={result.key}><span className="capture-result-swatch" aria-hidden="true" /><span>{result.label}</span><strong>{result.value}</strong><small>{percentage(result.value).toFixed(1)}%</small></div>)}</div>
-  </div>{recent.length > 0 && <div className="recent-captures-shell"><h4>Recent outcomes</h4><div className="recent-captures">{recent.map((item, index) => <div className={`recent-capture recent-capture--${item.status}`} key={`${item.scheduled_at}-${index}`}><strong>{item.status}</strong><span>{formatDateTime(item.scheduled_at)}</span><small>{item.message}</small></div>)}</div></div>}</section>;
+  </div><DailyCaptureProgress progress={dailyProgress} /></section>;
+}
+
+function DailyCaptureProgress({ progress }) {
+  if (!progress?.points?.length) return null;
+  const { points, ticks, next, completedWidth, pulseStart, pulseWidth } = buildCaptureProgress(progress);
+  const dateLabel = progress.date.replaceAll("-", "/");
+  const pointerAlignment = next && next.percent < 10 ? "start" : next && next.percent > 90 ? "end" : "center";
+  return <div className="daily-progress"><div className="daily-progress-heading"><div><h4>{progress.is_today ? "Today’s imaging progress" : "Daily imaging progress"}</h4><p>{dateLabel} · Smaller markers show technical replicates.</p></div><div className="daily-progress-legend"><span className="succeeded">Successful</span><span className="failed">Failed</span><span className="missed">Missed</span><span className="pending">Pending</span><span className="remaining">Remaining</span></div></div><ScrollableProgressTimeline points={points} ticks={ticks} next={next} completedWidth={completedWidth} pulseStart={pulseStart} pulseWidth={pulseWidth} pointerAlignment={pointerAlignment} /></div>;
+}
+
+export function buildCaptureProgress(progress) {
+  const groups = progress.points.map(point => {
+    const captures = point.captures?.length
+      ? point.captures
+      : [{ scheduled_at: point.scheduled_at, time: `${point.time}:00`, replicate: 1, status: point.status, message: point.message }];
+    return { ...point, scheduled_at: captures[0].scheduled_at, time: captures[0].time.slice(0, 5), captures };
+  });
+  const start = new Date(groups[0].scheduled_at).getTime();
+  const span = Math.max(new Date(groups.at(-1).scheduled_at).getTime() - start, 1000);
+  const withPercent = groups.map(group => ({ ...group, percent: ((new Date(group.scheduled_at).getTime() - start) / span) * 100 }));
+  const ticks = buildTimelineTicks(groups[0].time, groups.at(-1).time);
+  const nextGroupIndex = withPercent.findIndex(group => group.captures.some(capture => ["pending", "remaining"].includes(capture.status)));
+  const nextGroup = nextGroupIndex >= 0 ? withPercent[nextGroupIndex] : null;
+  const nextCapture = nextGroup?.captures.find(capture => ["pending", "remaining"].includes(capture.status));
+  const next = nextCapture ? { ...nextCapture, percent: nextGroup.percent, stackSize: nextGroup.captures.length } : null;
+  const completed = nextGroupIndex < 0 ? withPercent.at(-1) : nextGroupIndex > 0 ? withPercent[nextGroupIndex - 1] : null;
+  const completedWidth = completed?.percent ?? 0;
+  const pulseStart = completedWidth;
+  const pulseWidth = next ? Math.max(next.percent - pulseStart, 0) : 0;
+  return { points: withPercent, ticks, next, completedWidth, pulseStart, pulseWidth };
+}
+
+function ScrollableProgressTimeline({ points, ticks, next, completedWidth, pulseStart, pulseWidth, pointerAlignment }) {
+  const scrollRef = useRef(null);
+  const trackRef = useRef(null);
+  const dense = points.length > 30;
+  const mainMarkerSize = points.length <= 10
+    ? 20
+    : Math.max(15, 20 - (points.length - 10) * .25);
+  const replicateMarkerSize = mainMarkerSize * .68;
+  const maxStackSize = Math.max(...points.map(point => point.captures.length));
+  const replicateStep = Math.min(
+    replicateMarkerSize + 7,
+    82 / Math.max(maxStackSize - 1, 1),
+  );
+  const stackHeight = (maxStackSize - 1) * replicateStep;
+  useEffect(() => {
+    const scroller = scrollRef.current; const track = trackRef.current;
+    if (!dense || !next || !scroller || !track) return;
+    const target = track.offsetWidth * next.percent / 100 - scroller.clientWidth / 2;
+    scroller.scrollLeft = Math.max(0, target);
+  }, [dense, next?.scheduled_at]);
+  return <><div className={`daily-progress-scroll${dense ? " daily-progress-scroll--dense" : ""}`} style={{ paddingTop: `${64 + stackHeight}px`, "--main-marker-size": `${mainMarkerSize}px`, "--replicate-marker-size": `${replicateMarkerSize}px` }} ref={scrollRef}><div className="daily-progress-track" ref={trackRef} style={{ minWidth: dense ? `${Math.max(points.length * 26, 1050)}px` : undefined }}><div className="daily-progress-axis">{completedWidth > 0 && <span className="daily-progress-complete" style={{ width: `${completedWidth}%` }} />}{pulseWidth > 0 && <span className="daily-progress-pulse" style={{ left: `${pulseStart}%`, width: `${pulseWidth}%` }} />}{next && <span className={`daily-next-pointer daily-next-pointer--${pointerAlignment}`} style={{ left: `${next.percent}%`, bottom: `${14 + (next.stackSize - 1) * replicateStep}px` }}><span><strong>{next.status === "pending" ? "Awaiting result" : next.replicate > 1 ? `Next replicate · ${next.time}` : "Next capture"}</strong><small>{relativeFutureTime(next.scheduled_at)}</small></span><i aria-hidden="true" /></span>}{ticks.map(tick => <span className="daily-progress-tick" style={{ left: `${tick.percent}%` }} key={tick.time} />)}{points.map(point => <span className="daily-progress-cluster" style={{ left: `${point.percent}%` }} key={point.scheduled_at}>{point.captures.map(capture => { const label = capture.replicate > 1 ? `Replicate ${capture.replicate}` : "Time point"; const details = `${label} at ${capture.time}: ${capture.status}.${capture.message ? ` ${capture.message}` : ""}`; return <span className={`daily-progress-point daily-progress-point--${capture.status}${capture.replicate > 1 ? " daily-progress-point--replicate" : ""}`} style={{ top: `${-(capture.replicate - 1) * replicateStep}px` }} title={details} aria-label={details} tabIndex="0" key={capture.scheduled_at} />; })}</span>)}</div><div className="daily-progress-scale">{ticks.map(tick => <span style={{ left: `${tick.percent}%` }} key={tick.time}>{tick.time}</span>)}</div></div></div>{dense && <small className="daily-progress-scroll-hint">Scroll to inspect every time point.</small>}</>;
 }
 
 function DailyActivity({ schedule: s }) {

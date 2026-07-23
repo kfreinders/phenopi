@@ -117,7 +117,7 @@ def test_heartbeat_publishes_capture_ledger_summary(tmp_path):
     }
     recent = [{"status": "succeeded", "scheduled_at": NOW.isoformat()}]
     heartbeat.set_capture_status_provider(
-        lambda: {"summary": summary, "recent": recent, "last": recent[0]}
+        lambda: {"summary": summary, "recent": recent, "last": recent[0], "daily_progress": {"date": "2026-07-22", "points": []}}
     )
 
     heartbeat.write()
@@ -126,6 +126,7 @@ def test_heartbeat_publishes_capture_ledger_summary(tmp_path):
     assert payload["capture_summary"] == summary
     assert payload["recent_captures"] == recent
     assert payload["last_capture"] == recent[0]
+    assert payload["daily_capture_progress"]["date"] == "2026-07-22"
 
 
 def test_heartbeat_restores_capture_for_same_schedule(tmp_path):

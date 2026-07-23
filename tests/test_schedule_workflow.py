@@ -240,6 +240,19 @@ def test_schedule_api_routes_and_react_workflow_are_complete():
     assert "capture-result-bar" in scheduler
     assert "Result pending" in scheduler
     assert 'role="img"' in scheduler
+    assert "Today’s imaging progress" in scheduler
+    assert "daily-progress-pulse" in scheduler
+    assert "daily-progress-complete" in scheduler
+    assert "Smaller markers show technical replicates." in scheduler
+    assert "Next replicate" in scheduler
+    assert "Markers are condensed" not in scheduler
+    assert "Scroll to inspect every time point." in scheduler
+    assert "Recent outcomes" not in scheduler
+    assert "daily-next-pointer" in scheduler
+    assert "Latest actual capture" not in scheduler
+    assert "Final capture" not in scheduler
+    assert "Finishes at" in scheduler
+    assert "function ScheduleStorage" in scheduler
     assert "day-strip" not in components
     assert "Scheduled experiment days" not in components
     assert "preview-overview" in components

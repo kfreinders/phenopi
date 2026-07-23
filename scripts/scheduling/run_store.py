@@ -48,6 +48,9 @@ class RunArchive:
         if run is None:
             raise ValueError("A run archive requires run metadata.")
         self.run = run
+        self.schedule = (
+            schedule if isinstance(schedule, Schedule) else Schedule.from_dict(schedule_data)
+        )
         self.schedule_hash = schedule_hash
         self.expected_times = expected_times
         self.directory = output_root / run_directory_name(schedule_data["start_date"], run)
@@ -204,4 +207,73 @@ class RunArchive:
             },
             "recent": recent,
             "last": recent[0] if recent else None,
+            "daily_progress": self._daily_progress(now, latest),
+        }
+
+    def _daily_progress(
+        self,
+        now: datetime,
+        latest: dict[str, dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        if not self.expected_times:
+            return None
+        grouped = [
+            self.expected_times[index:index + self.schedule.replicates]
+            for index in range(0, len(self.expected_times), self.schedule.replicates)
+        ]
+        available_dates = sorted({group[0].date() for group in grouped})
+        today = now.date()
+        focus_date = (
+            today
+            if today in available_dates
+            else next((value for value in available_dates if value > today), available_dates[-1])
+        )
+        points = []
+        for group in (value for value in grouped if value[0].date() == focus_date):
+            statuses = []
+            messages = []
+            captures = []
+            for replicate_index, scheduled_at in enumerate(group):
+                event = latest.get(scheduled_at.isoformat())
+                if event is not None:
+                    capture_status = event["status"]
+                    statuses.append(capture_status)
+                    if event["status"] != "succeeded" and event.get("message"):
+                        messages.append(event["message"])
+                else:
+                    capture_status = "pending" if scheduled_at < now else "remaining"
+                    statuses.append(capture_status)
+                captures.append({
+                    "scheduled_at": scheduled_at.isoformat(),
+                    "time": scheduled_at.strftime("%H:%M:%S"),
+                    "replicate": replicate_index + 1,
+                    "status": capture_status,
+                    "message": event.get("message") if event is not None else None,
+                })
+            counts = {
+                status: statuses.count(status)
+                for status in ("succeeded", "failed", "missed", "pending", "remaining")
+            }
+            if counts["failed"]:
+                status = "failed"
+            elif counts["missed"]:
+                status = "missed"
+            elif counts["pending"] or (counts["succeeded"] and counts["remaining"]):
+                status = "pending"
+            elif counts["succeeded"] == len(statuses):
+                status = "succeeded"
+            else:
+                status = "remaining"
+            points.append({
+                "time": group[0].strftime("%H:%M"),
+                "scheduled_at": group[0].isoformat(),
+                "status": status,
+                "counts": counts,
+                "message": messages[0] if messages else None,
+                "captures": captures,
+            })
+        return {
+            "date": focus_date.isoformat(),
+            "is_today": focus_date == today,
+            "points": points,
         }

@@ -81,6 +81,43 @@ def test_run_archive_records_unreported_past_captures_as_missed(tmp_path):
     assert archive.status_payload(NOW)["summary"]["missed"] == 1
 
 
+def test_status_payload_groups_current_day_results_by_time_point(tmp_path):
+    configured = schedule(replicates=2, replicate_interval_seconds=10)
+    expected = [
+        NOW - timedelta(hours=1),
+        NOW - timedelta(hours=1) + timedelta(seconds=10),
+        NOW + timedelta(hours=1),
+        NOW + timedelta(hours=1) + timedelta(seconds=10),
+    ]
+    archive = RunArchive(tmp_path, configured, "a" * 64, expected)
+    archive.record(scheduled_at=expected[0], status="succeeded", message="ok")
+    archive.record(scheduled_at=expected[1], status="failed", message="camera error")
+
+    progress = archive.status_payload(NOW)["daily_progress"]
+
+    assert progress["date"] == NOW.date().isoformat()
+    assert progress["is_today"] is True
+    assert [point["status"] for point in progress["points"]] == ["failed", "remaining"]
+    assert progress["points"][0]["counts"]["succeeded"] == 1
+    assert progress["points"][0]["message"] == "camera error"
+    assert progress["points"][0]["captures"] == [
+        {
+            "scheduled_at": expected[0].isoformat(),
+            "time": expected[0].strftime("%H:%M:%S"),
+            "replicate": 1,
+            "status": "succeeded",
+            "message": "ok",
+        },
+        {
+            "scheduled_at": expected[1].isoformat(),
+            "time": expected[1].strftime("%H:%M:%S"),
+            "replicate": 2,
+            "status": "failed",
+            "message": "camera error",
+        },
+    ]
+
+
 def test_capture_ledger_ignores_only_an_interrupted_final_line(tmp_path):
     archive = RunArchive(tmp_path, schedule(), "a" * 64, [NOW])
     archive.record(scheduled_at=NOW, status="succeeded", message="ok")
