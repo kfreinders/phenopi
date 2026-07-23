@@ -545,7 +545,10 @@ def run_scheduler_until_reload(
                         {
                             key: value
                             for key, value in analysis_state.items()
-                            if key not in analysis_summary
+                            if (
+                                key not in analysis_summary
+                                and not key.startswith("_")
+                            )
                         }
                     )
                     payload["analysis"] = analysis_summary

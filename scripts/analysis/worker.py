@@ -16,6 +16,9 @@ ANALYSIS_POLL_SECONDS = 15
 DEFAULT_ANALYSIS_SECONDS = 5 * 60
 CAPTURE_SAFETY_SECONDS = 60
 MAX_ANALYSIS_SECONDS = 60 * 60
+ANALYSIS_IMPORT_CHECK = (
+    "import cv2; from plantcv import plantcv"
+)
 
 
 @dataclass(frozen=True)
@@ -107,6 +110,19 @@ def poll_analysis_queue(
         )
         return state
 
+    if not state.get("_environment_ready"):
+        environment_error = _analysis_environment_error(config)
+        if environment_error is not None:
+            state.update(
+                summary,
+                state="unavailable",
+                reason="missing_dependencies",
+                message=environment_error,
+                next_safe_at=None,
+            )
+            return state
+        state["_environment_ready"] = True
+
     capture = pending[0]
     capture_id = capture["capture_id"]
     state.update(
@@ -179,3 +195,30 @@ def _resolve_capture_path(run_archive: RunArchive, relative_path: str) -> Path:
     except ValueError as exc:
         raise ValueError("Analysis image path escapes the run directory.") from exc
     return candidate
+
+
+def _analysis_environment_error(
+    config: SchedulerConfig,
+) -> str | None:
+    """Verify the worker interpreter before consuming an analysis attempt."""
+    try:
+        subprocess.run(
+            [
+                str(config.python_bin),
+                "-c",
+                ANALYSIS_IMPORT_CHECK,
+            ],
+            check=True,
+            cwd=config.capture_script.parents[2],
+            timeout=30,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        message = (
+            "Automatic analysis dependencies are unavailable in the "
+            f"configured Python environment: {config.python_bin}"
+        )
+        print(f"[analysis] {message}")
+        return message
+    return None

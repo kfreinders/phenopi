@@ -1,9 +1,14 @@
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import subprocess
 from types import SimpleNamespace
 
 from scripts.analysis.queue import AnalysisQueue
-from scripts.analysis.worker import find_analysis_window, poll_analysis_queue
+from scripts.analysis.worker import (
+    _analysis_environment_error,
+    find_analysis_window,
+    poll_analysis_queue,
+)
 from scripts.scheduling.run_store import RunArchive
 
 
@@ -115,3 +120,24 @@ def test_worker_analyzes_one_pending_capture(tmp_path, monkeypatch):
     assert called["kwargs"]["check"] is True
     assert state["succeeded"] == 1
     assert AnalysisQueue(archive.analysis_dir).pending(archive.events()) == []
+
+
+def test_missing_analysis_dependencies_are_reported_before_an_attempt(
+    tmp_path,
+    monkeypatch,
+):
+    config = SimpleNamespace(
+        python_bin=Path("/incomplete/bin/python"),
+        capture_script=(
+            tmp_path / "project" / "scripts" / "capture" / "capture_once.py"
+        ),
+    )
+
+    def missing(*args, **kwargs):
+        raise subprocess.CalledProcessError(1, args[0])
+
+    monkeypatch.setattr("scripts.analysis.worker.subprocess.run", missing)
+
+    error = _analysis_environment_error(config)
+
+    assert "/incomplete/bin/python" in error

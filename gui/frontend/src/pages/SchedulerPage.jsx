@@ -52,10 +52,15 @@ function AnalysisProgress({ summary }) {
   const percent = summary.total ? completed / summary.total * 100 : 0;
   const stateLabel = summary.state === "running"
     ? "Analyzing image"
+    : summary.state === "unavailable"
+      ? "Analysis environment unavailable"
     : summary.pending > 0
       ? "Waiting for a safe capture gap"
       : "Analysis up to date";
-  return <section className="card analysis-progress-card"><div><span className="eyebrow">Automatic analysis</span><h3>{stateLabel}</h3><p>Analysis runs only when there is enough protected time before the next capture.</p></div><div className="analysis-progress-summary"><strong>{summary.succeeded} / {summary.total}</strong><span>images analyzed</span>{summary.failed > 0 && <small>{summary.failed} failed after retrying</small>}</div><div className="analysis-progress-meter" role="progressbar" aria-label={`${completed} of ${summary.total} images processed`} aria-valuenow={completed} aria-valuemin="0" aria-valuemax={summary.total}><i style={{ width: `${percent}%` }} /></div></section>;
+  const description = summary.state === "unavailable"
+    ? "The configured Python environment is missing the canopy-analysis dependencies. Ask the system administrator to repair the installation."
+    : "Analysis runs only when there is enough protected time before the next capture.";
+  return <section className="card analysis-progress-card"><div><span className="eyebrow">Automatic analysis</span><h3>{stateLabel}</h3><p>{description}</p></div><div className="analysis-progress-summary"><strong>{summary.succeeded} / {summary.total}</strong><span>images analyzed</span>{summary.failed > 0 && <small>{summary.failed} failed after retrying</small>}</div><div className="analysis-progress-meter" role="progressbar" aria-label={`${completed} of ${summary.total} images processed`} aria-valuenow={completed} aria-valuemin="0" aria-valuemax={summary.total}><i style={{ width: `${percent}%` }} /></div></section>;
 }
 
 function ScheduleStorage({ storage }) {
