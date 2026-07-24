@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { Navigation } from "./components";
 import { useSchedulerHealth } from "./hooks";
@@ -16,15 +17,54 @@ const healthLabels = {
 };
 
 function Shell() {
+  const [contactOpen, setContactOpen] = useState(false);
+  const contactTrigger = useRef(null);
+  const contactClose = useRef(null);
   const { data, error } = useSchedulerHealth();
   const health = data ?? { status: error ? "unavailable" : "loading", age_seconds: null, message: error?.message ?? "Loading scheduler health" };
   const label = healthLabels[health.status] ?? "Loading";
+
+  useEffect(() => {
+    if (!contactOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setContactOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleKeyDown);
+    contactClose.current?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+      contactTrigger.current?.focus();
+    };
+  }, [contactOpen]);
+
   return <>
-    <header className="topbar"><div className="topbar-inner"><div><h1>Phenopi</h1><p>Experiment setup and analysis interface</p></div>
+    <header className="topbar"><div className="topbar-inner"><div><h1 className="phenopi-identity"><span className="phenopi-identity-controls"><a className="phenopi-home-link" href="/scheduler"><span className="phenopi-wordmark">Phenopi</span></a><span ref={contactTrigger} className="phenopi-about-trigger" role="button" tabIndex="0" aria-label="About Phenopi and its developer" aria-haspopup="dialog" aria-expanded={contactOpen} onClick={() => setContactOpen(true)} onKeyDown={(event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        setContactOpen(true);
+      }
+    }}>About</span></span></h1><p>Experiment setup and analysis interface</p></div>
       <a className={`status-pill status-pill--${health.status}`} href="/scheduler" title={health.message} aria-label={`${label}. ${health.message}`}>
         <span className="status-pill-dot" aria-hidden="true" /><strong>{label}</strong><small>{health.age_seconds == null ? "—" : `${Math.round(health.age_seconds)}s`}</small>
       </a></div></header>
     <main className="layout"><Navigation /><Outlet /></main>
+    {contactOpen && <div className="phenopi-modal-backdrop" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) setContactOpen(false);
+    }}>
+      <section className="phenopi-modal" role="dialog" aria-modal="true" aria-labelledby="phenopi-modal-title">
+        <button ref={contactClose} className="phenopi-modal-close" type="button" aria-label="Close developer information" onClick={() => setContactOpen(false)}>×</button>
+        <span className="phenopi-modal-eyebrow">Phenopi</span>
+        <h2 id="phenopi-modal-title">Koen Reinders</h2>
+        <p>Developer and project contact</p>
+        <div className="phenopi-modal-links">
+          <a href="mailto:koenf.reinders@gmail.com"><span>Email</span><strong>koenf.reinders@gmail.com</strong></a>
+          <a href="https://github.com/kfreinders/phenopi" target="_blank" rel="noreferrer"><span>GitHub</span><strong>kfreinders/phenopi</strong></a>
+        </div>
+      </section>
+    </div>}
   </>;
 }
 
