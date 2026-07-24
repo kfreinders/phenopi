@@ -3,7 +3,9 @@ import json
 from uuid import UUID, uuid4
 
 import pytest
+from fastapi import HTTPException
 
+from gui.routes import scheduler as scheduler_routes
 from gui.services.experiment_exports import (
     ExperimentExportError,
     delete_experiment_data,
@@ -105,6 +107,47 @@ def test_deletion_removes_only_the_matching_dataset_and_zip(tmp_path):
     details = export_details(tmp_path, schedule)
     assert details["data_present"] is False
     assert details["archive_ready"] is False
+
+
+def test_deleted_finished_run_is_hidden_from_scheduler_status(
+    tmp_path,
+    monkeypatch,
+):
+    run_id, schedule, _ = completed_dataset(tmp_path)
+    delete_experiment_data(tmp_path, schedule)
+    status = {
+        "status": "healthy",
+        "schedule": schedule,
+        "schedule_error": None,
+        "schedule_is_last_reported": False,
+        "last_capture": {"status": "succeeded"},
+        "capture_summary": {"total": 1, "succeeded": 1},
+        "recent_captures": [{"status": "succeeded"}],
+        "daily_capture_progress": {"points": []},
+        "analysis_summary": {"total": 1, "succeeded": 1},
+    }
+    monkeypatch.setattr(scheduler_routes, "CAPTURE_OUTPUT_ROOT", tmp_path)
+    monkeypatch.setattr(
+        scheduler_routes,
+        "read_scheduler_status",
+        lambda path: status,
+    )
+    monkeypatch.setattr(
+        scheduler_routes,
+        "schedule_draft_state",
+        lambda: "none",
+    )
+
+    payload = scheduler_routes.scheduler_status_api()
+
+    assert payload["schedule"] is None
+    assert payload["capture_summary"] is None
+    assert payload["daily_capture_progress"] is None
+    assert payload["analysis_summary"] is None
+    assert payload["draft_state"] == "none"
+    with pytest.raises(HTTPException) as unavailable:
+        scheduler_routes._finished_schedule(run_id)
+    assert unavailable.value.status_code == 404
 
 
 def test_deleted_run_does_not_block_replacement_schedule(tmp_path):

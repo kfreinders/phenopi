@@ -56,7 +56,9 @@ def schedule_draft_state() -> str:
 
 @router.get("/api/scheduler/status")
 def scheduler_status_api() -> dict:
-    status = read_scheduler_status(SCHEDULER_HEARTBEAT_PATH)
+    status = _hide_deleted_finished_experiment(
+        read_scheduler_status(SCHEDULER_HEARTBEAT_PATH)
+    )
     schedule_hash = (status.get("schedule") or {}).get("hash")
     return {
         **status,
@@ -166,6 +168,37 @@ def remove_finished_experiment(
 def _finished_schedule(run_id: UUID) -> dict:
     status = read_scheduler_status(SCHEDULER_HEARTBEAT_PATH)
     try:
-        return validate_finished_experiment(status, run_id)
+        schedule = validate_finished_experiment(status, run_id)
+        if export_details(CAPTURE_OUTPUT_ROOT, schedule)["state"] == "deleted":
+            raise ExperimentExportError(
+                "This finished experiment is no longer available."
+            )
+        return schedule
     except ExperimentExportError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def _hide_deleted_finished_experiment(status: dict) -> dict:
+    """Present a deleted completed run as an empty scheduler."""
+    schedule = status.get("schedule")
+    if not schedule or schedule.get("lifecycle") != "finished":
+        return status
+    try:
+        deleted = (
+            export_details(CAPTURE_OUTPUT_ROOT, schedule)["state"] == "deleted"
+        )
+    except (ExperimentExportError, OSError, KeyError, TypeError, ValueError):
+        return status
+    if not deleted:
+        return status
+    return {
+        **status,
+        "schedule": None,
+        "schedule_error": None,
+        "schedule_is_last_reported": False,
+        "last_capture": None,
+        "capture_summary": None,
+        "recent_captures": [],
+        "daily_capture_progress": None,
+        "analysis_summary": None,
+    }
