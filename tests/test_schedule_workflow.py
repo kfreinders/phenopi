@@ -9,6 +9,7 @@ from phenopi.config import PROJECT_ROOT
 from gui.routes import schedule_api
 from gui.services.schedule_drafts import (
     attach_analysis_profile_to_draft,
+    confirm_camera_alignment,
     discard_schedule_draft,
     persist_schedule_draft,
 )
@@ -90,7 +91,7 @@ def test_configure_api_and_react_form_expose_safe_defaults(tmp_path, monkeypatch
     assert payload["form"]["replicate_interval_seconds"] == 0
     assert payload["form"]["analysis_enabled"] is False
     assert payload["minimum_start_date"] == date.today().isoformat()
-    assert "Continue to review" in source
+    assert "Continue to camera alignment" in source
     assert 'max="365"' in source
     assert "replicate-interval-control" in source
     assert "Start date (YYYY/MM/DD)" in source
@@ -109,7 +110,7 @@ def test_configure_api_discards_an_expired_draft(tmp_path, monkeypatch):
     draft_path, _, _ = configure_paths(monkeypatch, tmp_path)
     form = schedule_form_data(start_date=(date.today() - timedelta(days=1)).isoformat())
     draft_path.write_text(json.dumps({
-        "version": 2,
+        "version": 3,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "form": form.model_dump(),
         "schedule": {},
@@ -143,9 +144,20 @@ def test_draft_api_returns_complete_review_payload(tmp_path, monkeypatch):
     assert payload["draft"]["form"]["experiment_name"] == "Seedling drought response"
     assert payload["preview"]["total_captures"] == 12
     assert payload["preview"]["timeline_points"]
-    assert payload["can_activate"] is True
+    assert payload["camera_aligned"] is False
+    assert payload["can_activate"] is False
     assert payload["analysis_requested"] is False
     assert payload["analysis_ready"] is False
+
+    with pytest.raises(HTTPException, match="camera alignment"):
+        schedule_api.activate_schedule(
+            schedule_api.ActivationRequest(
+                draft_hash=payload["draft"]["schedule_hash"]
+            )
+        )
+    aligned = schedule_api.confirm_draft_camera()
+    assert aligned["camera_aligned"] is True
+    assert aligned["can_activate"] is True
 
 
 def test_analysis_enabled_draft_requires_calibration_before_activation(
@@ -158,6 +170,7 @@ def test_analysis_enabled_draft_requires_calibration_before_activation(
     review = schedule_api.create_schedule_draft(
         schedule_form_data(analysis_enabled=True)
     )
+    schedule_api.confirm_draft_camera()
 
     assert review["analysis_requested"] is True
     assert review["analysis_ready"] is False
@@ -279,6 +292,7 @@ def test_finished_schedule_is_not_used_for_draft_comparison(tmp_path, monkeypatc
 def test_identical_active_schedule_is_prominent_and_needs_no_activation(tmp_path, monkeypatch):
     draft_path, _, heartbeat = configure_paths(monkeypatch, tmp_path)
     draft = persist_schedule_draft(schedule_form_data(), draft_path)
+    confirm_camera_alignment(draft_path)
     write_heartbeat(heartbeat, state="running", schedule={
         "hash": draft.schedule_hash,
         "timezone": "Europe/Amsterdam",
@@ -296,6 +310,7 @@ def test_identical_active_schedule_is_prominent_and_needs_no_activation(tmp_path
 def test_active_schedule_requires_confirmation_before_atomic_promotion(tmp_path, monkeypatch):
     draft_path, schedule_path, heartbeat = configure_paths(monkeypatch, tmp_path)
     draft = persist_schedule_draft(schedule_form_data(), draft_path)
+    confirm_camera_alignment(draft_path)
     write_heartbeat(heartbeat, state="running", schedule={
         "hash": "a" * 64,
         "timezone": "Europe/Amsterdam",
@@ -319,6 +334,7 @@ def test_active_schedule_requires_confirmation_before_atomic_promotion(tmp_path,
 def test_upcoming_schedule_requires_confirmation_before_replacement(tmp_path, monkeypatch):
     draft_path, schedule_path, heartbeat = configure_paths(monkeypatch, tmp_path)
     draft = persist_schedule_draft(schedule_form_data(), draft_path)
+    confirm_camera_alignment(draft_path)
     write_heartbeat(heartbeat, schedule={
         "hash": "b" * 64,
         "timezone": "Europe/Amsterdam",
@@ -346,6 +362,10 @@ def test_schedule_api_routes_and_react_workflow_are_complete():
         str(app.url_path_for("attach_draft_analysis"))
         == "/api/schedule/draft/analysis"
     )
+    assert (
+        str(app.url_path_for("confirm_draft_camera"))
+        == "/api/schedule/draft/camera"
+    )
     assert str(app.url_path_for("activate_schedule")) == "/api/schedule/activate"
     app_source = (FRONTEND / "App.jsx").read_text()
     activation = (FRONTEND / "pages" / "ActivationPage.jsx").read_text()
@@ -360,7 +380,8 @@ def test_schedule_api_routes_and_react_workflow_are_complete():
     assert "Canopy measurements" in builder
     assert "Images only" in builder
     assert "Analyze canopy" in builder
-    assert "Continue to calibration" in builder
+    assert "Continue to camera alignment" in builder
+    assert 'navigate("/camera?workflow=schedule")' in builder
     assert "Canopy calibration required" in review
     assert "Calibrate analysis" in review
     assert "Use this calibration" in analysis
@@ -374,6 +395,7 @@ def test_schedule_api_routes_and_react_workflow_are_complete():
     assert "scrollIntoView" in analysis
     assert "prefers-reduced-motion" in analysis
     assert '"Calibrate"' in components
+    assert '"Align camera"' in components
     assert "schedule?.hash === expected" in activation
     assert "setCountdown(5)" in activation
     assert "Create another schedule" not in activation

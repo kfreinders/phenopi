@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
-import { Navigation } from "./components";
 import { useSchedulerHealth } from "./hooks";
 import { SchedulerPage } from "./pages/SchedulerPage";
 import { ScheduleBuilderPage } from "./pages/ScheduleBuilderPage";
@@ -50,7 +49,7 @@ function Shell() {
       <a className={`status-pill status-pill--${health.status}`} href="/scheduler" title={health.message} aria-label={`${label}. ${health.message}`}>
         <span className="status-pill-dot" aria-hidden="true" /><strong>{label}</strong><small>{health.age_seconds == null ? "—" : `${Math.round(health.age_seconds)}s`}</small>
       </a></div></header>
-    <main className="layout"><Navigation /><Outlet /></main>
+    <main className="layout"><Outlet /></main>
     {contactOpen && <div className="phenopi-modal-backdrop" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) setContactOpen(false);
     }}>

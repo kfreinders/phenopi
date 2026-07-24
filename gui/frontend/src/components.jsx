@@ -1,9 +1,7 @@
-import { NavLink } from "react-router-dom";
-
 export function WorkflowSteps({ current, analysisEnabled = false }) {
   const steps = analysisEnabled
-    ? ["Configure", "Calibrate", "Review", "Activate", "Confirmed"]
-    : ["Configure", "Review", "Activate", "Confirmed"];
+    ? ["Configure", "Align camera", "Calibrate", "Review", "Activate", "Confirmed"]
+    : ["Configure", "Align camera", "Review", "Activate", "Confirmed"];
   return <ol className="workflow-steps" style={{ "--workflow-step-count": steps.length }} aria-label="Schedule activation progress">
     {steps.map((label, index) => {
       const number = index + 1;
@@ -68,11 +66,4 @@ export function condenseTimelinePoints(points, limit = 40) {
   if (points.length <= limit) return points;
   const indexes = Array.from({ length: limit }, (_, index) => Math.round(index * (points.length - 1) / (limit - 1)));
   return indexes.map(index => points[index]);
-}
-
-export function Navigation() {
-  return <nav className="tabs" aria-label="Phenopi sections">
-    <NavLink className={({ isActive }) => `tab${isActive ? " active" : ""}`} to="/scheduler">Scheduler status</NavLink>
-    <NavLink className={({ isActive }) => `tab${isActive ? " active" : ""}`} to="/camera">Camera preview</NavLink>
-  </nav>;
 }

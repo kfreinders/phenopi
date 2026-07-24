@@ -7,6 +7,23 @@
   overflow: hidden;
 }
 
+.camera-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.camera-heading h2,
+.camera-heading p {
+  margin: 0;
+}
+
+.camera-heading p {
+  margin-top: .25rem;
+  color: var(--muted);
+}
+
 .camera-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 20rem;
@@ -180,6 +197,15 @@
   line-height: 1.45;
 }
 
+.camera-note--confirmed {
+  border-color: #abefc6;
+  background: #ecfdf3;
+}
+
+.camera-note--confirmed strong {
+  color: #067647;
+}
+
 @media (max-width: 900px) {
   .camera-layout {
     grid-template-columns: 1fr;
@@ -191,6 +217,11 @@
   }
 
   .camera-workflow-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .camera-heading {
     align-items: flex-start;
     flex-direction: column;
   }

@@ -13,6 +13,7 @@ from gui.services.schedule_preview import (
     load_schedule_draft,
     persist_schedule_draft,
 )
+from gui.services.schedule_drafts import confirm_camera_alignment
 from scripts.scheduling.make_schedule import write_schedule
 from scripts.scheduling.scheduler import expand_schedule, load_schedule
 
@@ -164,6 +165,7 @@ def test_schedule_draft_round_trip_and_activation(tmp_path):
     )
 
     draft = persist_schedule_draft(form, draft_path)
+    aligned_draft = confirm_camera_alignment(draft_path)
     loaded, preview = load_schedule_draft(draft_path)
     activated_hash = activate_schedule_draft(
         draft.schedule_hash,
@@ -171,7 +173,7 @@ def test_schedule_draft_round_trip_and_activation(tmp_path):
         schedule_path=schedule_path,
     )
 
-    assert loaded == draft
+    assert loaded == aligned_draft
     assert preview.times == ["09:00"]
     assert activated_hash == draft.schedule_hash
     assert (

@@ -43,6 +43,10 @@ function ScheduledAnalysisSetupPage() {
           navigate("/schedule", { replace: true });
           return;
         }
+        if (!payload.camera_aligned) {
+          navigate("/camera?workflow=schedule", { replace: true });
+          return;
+        }
         setConfig(payload.config);
         setSaved(payload.profile_saved);
       })
@@ -172,10 +176,10 @@ function ScheduledAnalysisSetupPage() {
   if (!config) return <Loading label="Loading analysis settings" />;
 
   return <section className="analysis-page">
-    {scheduleWorkflow && <WorkflowSteps current={2} analysisEnabled />}
+    {scheduleWorkflow && <WorkflowSteps current={3} analysisEnabled />}
     <header className="react-page-heading analysis-page-heading"><div><h2>{scheduleWorkflow ? "Calibrate canopy analysis" : "Analysis setup"}</h2><p>Tune plant segmentation using a representative calibration image.</p></div>{scheduleWorkflow && <Link className="button-link secondary" to="/schedule/edit"><span aria-hidden="true">←</span> Back to configure</Link>}</header>
     <ErrorNotice error={error} />
-    {scheduleWorkflow && <section className={`card analysis-workflow-intro${saved ? " analysis-workflow-intro--saved" : ""}`}><div><span aria-hidden="true">{saved ? "✓" : "2"}</span><div><h3>{saved ? "This experiment is calibrated" : "Calibration required"}</h3><p>{saved ? "Continue with the calibration already saved for this experiment, or replace it below after changing the camera or tray setup." : "Canopy measurements cannot start until segmentation and the ROI grid have been calibrated."}</p></div></div>{saved && <button type="button" onClick={useSavedProfile} disabled={saving}>{saving ? "Loading…" : "Use this calibration"}</button>}</section>}
+    {scheduleWorkflow && <section className={`card analysis-workflow-intro${saved ? " analysis-workflow-intro--saved" : ""}`}><div><span aria-hidden="true">{saved ? "✓" : "3"}</span><div><h3>{saved ? "This experiment is calibrated" : "Calibration required"}</h3><p>{saved ? "Continue with the calibration already saved for this experiment, or replace it below after changing the camera or tray setup." : "Canopy measurements cannot start until segmentation and the ROI grid have been calibrated."}</p></div></div>{saved && <button type="button" onClick={useSavedProfile} disabled={saving}>{saving ? "Loading…" : "Use this calibration"}</button>}</section>}
     <div className="analysis-setup-layout">
       <aside className="card analysis-controls">
         <div className="analysis-image-picker">

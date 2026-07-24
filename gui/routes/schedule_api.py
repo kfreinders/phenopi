@@ -14,6 +14,7 @@ from gui.services.schedule_comparison import compare_schedules
 from gui.services.schedule_drafts import (
     activate_schedule_draft,
     attach_analysis_profile_to_draft,
+    confirm_camera_alignment,
     discard_schedule_draft,
     load_current_schedule_draft,
     persist_schedule_draft,
@@ -99,6 +100,20 @@ def attach_draft_analysis() -> dict:
     return get_schedule_draft()
 
 
+@router.post("/draft/camera")
+def confirm_draft_camera() -> dict:
+    if _load_draft() is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No schedule draft is available.",
+        )
+    try:
+        confirm_camera_alignment(SCHEDULE_DRAFT_PATH)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return get_schedule_draft()
+
+
 @router.post("/activate")
 def activate_schedule(request: ActivationRequest) -> dict:
     loaded = _load_draft()
@@ -130,6 +145,11 @@ def activate_schedule(request: ActivationRequest) -> dict:
                 "Complete and save the canopy analysis calibration before "
                 "activating this experiment."
             ),
+        )
+    if not review["camera_aligned"]:
+        raise HTTPException(
+            status_code=409,
+            detail="Confirm the camera alignment before activating this experiment.",
         )
 
     active = status.get("schedule")
@@ -201,9 +221,11 @@ def _review_payload(draft, preview, status: dict) -> dict:
         "scheduler_responding": scheduler_responding,
         "analysis_requested": draft.form.analysis_enabled,
         "analysis_ready": draft.schedule.get("analysis") is not None,
+        "camera_aligned": draft.camera_aligned,
         "can_activate": (
             scheduler_responding
             and storage["status"] != "insufficient"
+            and draft.camera_aligned
             and (
                 not draft.form.analysis_enabled
                 or draft.schedule.get("analysis") is not None

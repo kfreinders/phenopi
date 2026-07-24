@@ -80,6 +80,9 @@ def configure_analysis() -> dict:
     return {
         "config": AnalysisConfig().to_dict(),
         "workflow_available": workflow_available,
+        "camera_aligned": bool(
+            workflow_available and loaded[0].camera_aligned
+        ),
         "profile_saved": bool(
             workflow_available and loaded[0].schedule.get("analysis")
         ),
@@ -118,10 +121,16 @@ def detect_analysis_roi(request: RoiPreviewRequest) -> dict:
 
 @router.put("/profile")
 def save_analysis_profile(request: SaveAnalysisProfileRequest) -> dict:
-    if load_current_schedule_draft(SCHEDULE_DRAFT_PATH) is None:
+    loaded = load_current_schedule_draft(SCHEDULE_DRAFT_PATH)
+    if loaded is None:
         raise HTTPException(
             status_code=409,
             detail="Create an analysis-enabled experiment draft first.",
+        )
+    if not loaded[0].camera_aligned:
+        raise HTTPException(
+            status_code=409,
+            detail="Confirm the camera alignment before calibrating analysis.",
         )
     try:
         profile = AnalysisProfile(

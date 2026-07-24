@@ -26,7 +26,7 @@ from scripts.scheduling.make_schedule import (
 from scripts.analysis.profile import AnalysisProfile
 
 
-DRAFT_VERSION = 2
+DRAFT_VERSION = 3
 
 
 class ScheduleDraft(BaseModel):
@@ -37,6 +37,7 @@ class ScheduleDraft(BaseModel):
     form: ScheduleFormData
     schedule: dict[str, Any]
     schedule_hash: str
+    camera_aligned: bool = False
 
 
 def persist_schedule_draft(
@@ -78,6 +79,7 @@ def persist_schedule_draft(
         form=form,
         schedule=schedule,
         schedule_hash=_schedule_hash(schedule),
+        camera_aligned=existing.camera_aligned if existing else False,
     )
     atomic_write_text(path, draft.model_dump_json(indent=2) + "\n")
     return draft
@@ -129,6 +131,16 @@ def discard_schedule_draft(path: Path = SCHEDULE_DRAFT_PATH) -> None:
     path.unlink(missing_ok=True)
 
 
+def confirm_camera_alignment(
+    path: Path = SCHEDULE_DRAFT_PATH,
+) -> ScheduleDraft:
+    """Record the mandatory camera-alignment check for one experiment."""
+    draft, _ = load_schedule_draft(path)
+    updated = draft.model_copy(update={"camera_aligned": True})
+    atomic_write_text(path, updated.model_dump_json(indent=2) + "\n")
+    return updated
+
+
 def attach_analysis_profile_to_draft(
     profile: AnalysisProfile | None = None,
     *,
@@ -173,6 +185,10 @@ def activate_schedule_draft(
     if draft.schedule_hash != expected_hash:
         raise ValueError(
             "This draft has been replaced. Review the latest draft before activating it."
+        )
+    if not draft.camera_aligned:
+        raise ValueError(
+            "Confirm the camera alignment before activating this experiment."
         )
     if draft.form.analysis_enabled and draft.schedule.get("analysis") is None:
         raise ValueError(
