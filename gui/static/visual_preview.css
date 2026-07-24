@@ -9,7 +9,7 @@
 .workflow-steps {
   isolation: isolate;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(var(--workflow-step-count, 4), 1fr);
   gap: 0;
   width: min(100%, 52rem);
   margin: 0 auto 1.25rem;

@@ -25,3 +25,24 @@ export async function api(path, options = {}) {
 
 export const getSchedulerStatus = () => api("/api/scheduler/status");
 export const getSchedulerHealth = () => api("/api/scheduler/health");
+export const getAnalysisConfig = () => api("/api/analysis/configure");
+export const previewAnalysis = (imageData, config, analysisCrop, maskExclusions, signal) => api(
+  "/api/analysis/preview",
+  { method: "POST", body: JSON.stringify({ image_data: imageData, config, analysis_crop: analysisCrop, mask_exclusions: maskExclusions }), signal },
+);
+export const detectAnalysisRoi = (imageData, config, analysisCrop, maskExclusions) => api(
+  "/api/analysis/roi",
+  { method: "POST", body: JSON.stringify({ image_data: imageData, config, analysis_crop: analysisCrop, mask_exclusions: maskExclusions }) },
+);
+export const saveAnalysisProfile = (config, roi) => api(
+  "/api/analysis/profile",
+  { method: "PUT", body: JSON.stringify({ config, roi }) },
+);
+export const deleteAnalysisProfile = () => api(
+  "/api/analysis/profile",
+  { method: "DELETE" },
+);
+export const attachDraftAnalysis = () => api(
+  "/api/schedule/draft/analysis",
+  { method: "POST" },
+);

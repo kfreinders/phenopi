@@ -7,10 +7,11 @@ import { formatBytes, formatDateTime, relativeFutureTime } from "../format";
 
 const lifecycleLabels = { upcoming: "Upcoming", active: "Active", finished: "Finished", empty: "Empty schedule" };
 
-function NextAction({ schedule, draftState, summary }) {
+function NextAction({ schedule, draftState, summary, analysis }) {
   if (draftState === "ready") return <section className="card schedule-action"><div><span className="eyebrow">Schedule draft</span><h3>Draft ready for review</h3><p>Continue reviewing the saved draft before activating it.</p></div><Link className="primary-link" to="/schedule/review">Review draft</Link></section>;
   if (draftState === "invalid") return <section className="card schedule-action"><div><span className="eyebrow">Schedule draft</span><h3>Draft needs attention</h3><p>Open the schedule builder to correct the saved draft.</p></div><Link className="primary-link" to="/schedule">Open schedule builder</Link></section>;
   if (schedule?.lifecycle !== "finished") return null;
+  if (analysis && (analysis.pending > 0 || analysis.running > 0)) return <section className="card schedule-action"><div><span className="eyebrow">Finishing experiment</span><h3>Analyzing captured images</h3><p>The download will become available after the remaining image analysis completes.</p></div><strong>{analysis.succeeded} / {analysis.total}</strong></section>;
   const issues = summary && summary.failed + summary.missed + summary.elapsed_unreported > 0;
   return <section className="card schedule-action"><div><span className="eyebrow">Experiment complete</span><h3>{issues ? "Experiment finished with capture issues" : "Experiment finished"}</h3><p>{issues ? "Review the outcomes, then download the experiment data." : "Download the completed dataset to your computer."}</p></div><Link className="primary-link" to={`/experiments/${schedule.run.id}`}>Download experiment data</Link></section>;
 }
@@ -26,7 +27,7 @@ export function SchedulerPage() {
     {data.status === "unavailable" && <div className="health-alert" role="alert">{data.message}</div>}
     {(data.schedule_error || data.schedule_is_last_reported || data.status === "invalid_schedule") && <div className="schedule-warning">{data.schedule_error ?? (data.schedule_is_last_reported ? "Showing the last reported schedule; live state cannot currently be confirmed." : "The edited schedule was rejected. The valid schedule remains active.")}</div>}
     {storageRisk && <div className="storage-risk" role="alert">Storage risk: remaining captures need approximately {formatBytes(schedule.estimated_remaining_storage_bytes)}, but only {formatBytes(data.storage.free_bytes)} is free.</div>}
-    <NextAction schedule={schedule} draftState={data.draft_state} summary={data.capture_summary} />
+    <NextAction schedule={schedule} draftState={data.draft_state} summary={data.capture_summary} analysis={data.analysis_summary} />
     {!schedule ? <section className="card schedule-empty"><h3>No schedule loaded</h3><Link className="primary-link" to={data.draft_state === "ready" ? "/schedule/review" : "/schedule"}>{data.draft_state === "ready" ? "Review draft" : "Create a schedule"}</Link></section> : <Dashboard data={data} />}
   </section>;
 }
@@ -36,12 +37,74 @@ function Dashboard({ data }) {
   const details = [s.run?.researcher, s.run?.notes].filter(Boolean).join(" · ");
   return <div id="schedule-dashboard">
     <section className="schedule-hero card"><div className="schedule-identity"><span className={`lifecycle-badge lifecycle-badge--${s.lifecycle}`}>{lifecycleLabels[s.lifecycle] ?? s.lifecycle}</span><h3>{s.run?.name ?? (s.lifecycle === "finished" ? "Completed experiment schedule" : "Current experiment schedule")}</h3><p>{s.start_date} → {s.end_date} · {s.num_days} day{s.num_days === 1 ? "" : "s"}</p><p className="schedule-finish"><span>Finishes at</span><strong>{formatDateTime(s.last_capture_at)}</strong></p>{details && <p className="schedule-run-details">{details}</p>}<ScheduleStorage storage={storage} /></div>
-      <div className="progress-ring" style={{ "--progress": `${s.progress_percent * 3.6}deg` }} role="img" aria-label={`${s.progress_percent}% planned schedule progress`}><div><strong>{s.progress_percent.toFixed(1)}%</strong><span>{s.elapsed_captures} / {s.total_captures} planned elapsed</span><small>{s.current_day ? `Day ${s.current_day} of ${s.num_days}` : s.lifecycle === "finished" ? "Schedule complete" : `${s.num_days} scheduled days`}</small></div></div></section>
+      <ScheduleProgressRing schedule={s} /></section>
     <CaptureResults summary={data.capture_summary} dailyProgress={data.daily_capture_progress} />
+    <AnalysisProgress summary={data.analysis_summary} />
     <section className="card overview-card"><div className="section-heading"><div><h3>Experiment timeline</h3><p>Planned progress across each experiment day.</p></div></div><div className="experiment-days">{s.days.map(day => <div className={`experiment-day experiment-day--${day.status}`} title={`${day.elapsed_captures} of ${day.total_captures} captures elapsed`} key={day.number}><strong>Day {day.number}</strong><span>{new Date(`${day.date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span></div>)}</div><div className="day-legend"><span className="complete">Complete</span><span className="current">Current</span><span className="upcoming">Upcoming</span></div></section>
     <DailyActivity schedule={s} />
     <StopExperiment schedule={s} initiallyPending={data.cancellation_pending} />
   </div>;
+}
+
+function ScheduleProgressRing({ schedule }) {
+  const progress = useAnimatedProgress(schedule.progress_percent);
+  const complete = progress >= 99.995;
+  const [displayMode, setDisplayMode] = useState("idle");
+  const modeClass = displayMode === "count"
+    ? " progress-ring--show-count"
+    : displayMode === "percentage"
+      ? " progress-ring--show-percentage"
+      : "";
+  return <div className={`progress-ring${complete ? " progress-ring--complete" : ""}${modeClass}`} style={{ "--progress": `${progress * 3.6}deg` }} role="img" tabIndex="0" aria-label={`${schedule.progress_percent}% schedule progress. ${schedule.elapsed_captures} of ${schedule.total_captures} planned captures completed.`} onMouseEnter={() => setDisplayMode("count")} onMouseLeave={() => setDisplayMode("percentage")} onFocus={() => setDisplayMode("count")} onBlur={() => setDisplayMode("percentage")}><div className="progress-ring-value"><strong className="progress-ring-percentage">{progress.toFixed(1)}%</strong><strong className="progress-ring-count">{schedule.elapsed_captures} / {schedule.total_captures}</strong></div></div>;
+}
+
+function useAnimatedProgress(target, duration = 700) {
+  const normalizedTarget = Math.max(0, Math.min(100, Number(target) || 0));
+  const [value, setValue] = useState(0);
+  const current = useRef(0);
+  useEffect(() => {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      current.current = normalizedTarget;
+      setValue(normalizedTarget);
+      return;
+    }
+    const startValue = current.current;
+    const difference = normalizedTarget - startValue;
+    if (Math.abs(difference) < 0.01) return;
+    const startedAt = performance.now();
+    let frame;
+    const animate = now => {
+      const elapsed = Math.min((now - startedAt) / duration, 1);
+      const next = startValue + difference * easeOutCubic(elapsed);
+      current.current = next;
+      setValue(next);
+      if (elapsed < 1) frame = window.requestAnimationFrame(animate);
+    };
+    frame = window.requestAnimationFrame(animate);
+    return () => window.cancelAnimationFrame(frame);
+  }, [normalizedTarget, duration]);
+  return value;
+}
+
+export function easeOutCubic(value) {
+  return 1 - Math.pow(1 - value, 3);
+}
+
+function AnalysisProgress({ summary }) {
+  if (!summary) return null;
+  const completed = summary.succeeded + summary.failed;
+  const percent = summary.total ? completed / summary.total * 100 : 0;
+  const stateLabel = summary.state === "running"
+    ? "Analyzing image"
+    : summary.state === "unavailable"
+      ? "Analysis environment unavailable"
+    : summary.pending > 0
+      ? "Waiting for a safe capture gap"
+      : "Analysis up to date";
+  const description = summary.state === "unavailable"
+    ? "The configured Python environment is missing the canopy-analysis dependencies. Ask the system administrator to repair the installation."
+    : "Analysis runs only when there is enough protected time before the next capture.";
+  return <section className="card analysis-progress-card"><div><span className="eyebrow">Automatic analysis</span><h3>{stateLabel}</h3><p>{description}</p></div><div className="analysis-progress-summary"><strong>{summary.succeeded} / {summary.total}</strong><span>images analyzed</span>{summary.failed > 0 && <small>{summary.failed} failed after retrying</small>}</div><div className="analysis-progress-meter" role="progressbar" aria-label={`${completed} of ${summary.total} images processed`} aria-valuenow={completed} aria-valuemin="0" aria-valuemax={summary.total}><i style={{ width: `${percent}%` }} /></div></section>;
 }
 
 function ScheduleStorage({ storage }) {

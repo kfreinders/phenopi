@@ -320,6 +320,7 @@ def write_schedule(
     replicates: int = 1,
     replicate_interval_seconds: int = 0,
     run: dict | None = None,
+    analysis: dict | None = None,
     overwrite: bool = False,
 ) -> None:
     validate_unique_expanded_times(
@@ -334,6 +335,7 @@ def write_schedule(
         replicates=replicates,
         replicate_interval_seconds=replicate_interval_seconds,
         run=run,
+        analysis=analysis,
     )
 
     if output.exists() and not overwrite:

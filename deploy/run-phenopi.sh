@@ -49,6 +49,12 @@ command -v "$PYTHON_BIN" >/dev/null || {
   echo "[deploy] Python executable not found: $PYTHON_BIN" >&2
   exit 1
 }
+"$PYTHON_BIN" -c 'import cv2; from plantcv import plantcv' >/dev/null 2>&1 || {
+  echo "[deploy] The selected Python environment is missing the image-analysis dependencies." >&2
+  echo "[deploy] Interpreter: $PYTHON_BIN" >&2
+  echo "[deploy] Install requirements with: $PYTHON_BIN -m pip install -r $PROJECT_ROOT/requirements.txt" >&2
+  exit 1
+}
 
 mkdir -p "$PHENOPI_RUNTIME_DIR" "$PHENOPI_CAPTURE_DIR"
 

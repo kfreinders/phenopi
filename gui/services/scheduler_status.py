@@ -224,6 +224,7 @@ def read_scheduler_status(
         "daily_capture_progress": _optional_dict(
             payload.get("daily_capture_progress")
         ),
+        "analysis_summary": _optional_dict(payload.get("analysis_summary")),
         "storage": _optional_dict(payload.get("storage")),
     }
 
@@ -293,6 +294,7 @@ def _unavailable_status() -> dict[str, Any]:
         "capture_summary": None,
         "recent_captures": [],
         "daily_capture_progress": None,
+        "analysis_summary": None,
         "storage": None,
     }
 

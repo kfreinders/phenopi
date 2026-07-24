@@ -15,6 +15,7 @@ class ScheduleFormData(BaseModel):
     experiment_name: str
     researcher: str | None = None
     notes: str | None = None
+    analysis_enabled: bool = False
     start_date: str
     num_days: int
     replicates: int
@@ -31,7 +32,14 @@ class ScheduleFormData(BaseModel):
     centered_step_minutes: int = 15
 
     def preview_arguments(self) -> dict[str, Any]:
-        return self.model_dump(exclude={"experiment_name", "researcher", "notes"})
+        return self.model_dump(
+            exclude={
+                "experiment_name",
+                "researcher",
+                "notes",
+                "analysis_enabled",
+            }
+        )
 
     def form_arguments(self) -> dict[str, Any]:
         return self.model_dump()
@@ -67,6 +75,7 @@ def form_defaults() -> dict[str, Any]:
         "experiment_name": "",
         "researcher": "",
         "notes": "",
+        "analysis_enabled": False,
         "start_date": date.today().isoformat(),
         "num_days": 14,
         "replicates": 1,

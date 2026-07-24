@@ -31,22 +31,24 @@ def draft_form() -> ScheduleFormData:
     )
 
 
-def test_main_navigation_keeps_the_builder_as_a_contextual_workflow():
-    source = (FRONTEND / "components.jsx").read_text()
-    navigation = source[source.index("function Navigation") :]
+def test_header_keeps_experiment_steps_out_of_the_main_navigation():
+    app_source = (FRONTEND / "App.jsx").read_text()
+    components = (FRONTEND / "components.jsx").read_text()
 
-    assert navigation.index('to="/scheduler"') < navigation.index('to="/camera"')
-    assert 'to="/schedule"' not in navigation
-    assert "React Router" not in navigation
+    assert "function Navigation" not in components
+    assert "<Navigation" not in app_source
 
 
-def test_camera_preview_leads_directly_to_schedule_setup():
+def test_camera_alignment_is_a_guarded_schedule_step():
     source = (FRONTEND / "pages" / "CameraPage.jsx").read_text()
 
-    assert "Camera preview is optional during development" in source
-    assert "does not verify the Raspberry Pi capture camera" in source
-    assert 'to="/schedule"' in source
-    assert "Continue to schedule setup" in source
+    assert 'params.get("workflow") !== "schedule"' in source
+    assert 'api("/api/schedule/draft/camera"' in source
+    assert "Confirm alignment" in source
+    assert (
+        'analysisEnabled ? "/analysis?workflow=schedule" : "/schedule/review"'
+        in source
+    )
 
 
 def test_spa_fallback_and_all_user_routes_are_registered_in_react():

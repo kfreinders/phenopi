@@ -101,31 +101,46 @@ from pathlib import Path
 
 
 def write_placeholder_capture(
-    output_dir: Path,
+    output_dir: Path | None = None,
     *,
     captured_at: datetime | None = None,
+    output_path: Path | None = None,
 ) -> Path:
     """Write an empty development capture using the production filename."""
+    if output_dir is None and output_path is None:
+        raise ValueError("An output directory or output path is required.")
     timestamp = (captured_at or datetime.now()).strftime("%Y%m%d_%H%M%S")
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"capture_{timestamp}.jpg"
-    output_path.write_bytes(b"")
-    return output_path
+    if output_path is not None:
+        destination = output_path
+    else:
+        assert output_dir is not None
+        destination = output_dir / f"capture_{timestamp}.jpg"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(b"")
+    return destination
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Write an empty placeholder image for local development."
     )
-    parser.add_argument(
+    destination = parser.add_mutually_exclusive_group(required=True)
+    destination.add_argument(
         "--output-dir",
         type=Path,
-        required=True,
         help="Directory where the placeholder capture will be saved.",
+    )
+    destination.add_argument(
+        "--output-path",
+        type=Path,
+        help="Exact path to use for the placeholder capture.",
     )
     args = parser.parse_args()
 
-    output_path = write_placeholder_capture(args.output_dir)
+    output_path = write_placeholder_capture(
+        args.output_dir or args.output_path.parent,
+        output_path=args.output_path,
+    )
     print(f"[capture] Wrote placeholder image to {output_path}")
 
 

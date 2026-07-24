@@ -7,8 +7,16 @@ from fastapi import HTTPException
 from gui.app import app
 from phenopi.config import PROJECT_ROOT
 from gui.routes import schedule_api
-from gui.services.schedule_drafts import persist_schedule_draft
+from gui.services.schedule_drafts import (
+    attach_analysis_profile_to_draft,
+    confirm_camera_alignment,
+    discard_schedule_draft,
+    persist_schedule_draft,
+)
 from gui.services.schedule_form import ScheduleFormData
+from scripts.analysis.config import AnalysisConfig
+from scripts.analysis.profile import AnalysisProfile
+from scripts.analysis.roi import RoiCircle, RoiDefinition
 
 
 FRONTEND = PROJECT_ROOT / "gui" / "frontend" / "src"
@@ -55,6 +63,25 @@ def configure_paths(monkeypatch, tmp_path):
     return draft, schedule, heartbeat
 
 
+def save_analysis_profile(path):
+    config = AnalysisConfig(roi_rows=1, roi_cols=1)
+    profile = AnalysisProfile(
+        schema_version=1,
+        config=config,
+        roi=RoiDefinition(
+            schema_version=2,
+            rows=1,
+            columns=1,
+            source_width=100,
+            source_height=100,
+            config_fingerprint=config.fingerprint,
+            circles=(RoiCircle(0, 0, 0.5, 0.5, 0.2),),
+        ),
+    )
+    profile.save(path)
+    return profile
+
+
 def test_configure_api_and_react_form_expose_safe_defaults(tmp_path, monkeypatch):
     configure_paths(monkeypatch, tmp_path)
     payload = schedule_api.configure_schedule()
@@ -62,8 +89,9 @@ def test_configure_api_and_react_form_expose_safe_defaults(tmp_path, monkeypatch
 
     assert payload["form"]["replicates"] == 1
     assert payload["form"]["replicate_interval_seconds"] == 0
+    assert payload["form"]["analysis_enabled"] is False
     assert payload["minimum_start_date"] == date.today().isoformat()
-    assert "Continue to review" in source
+    assert "Continue to camera alignment" in source
     assert 'max="365"' in source
     assert "replicate-interval-control" in source
     assert "Start date (YYYY/MM/DD)" in source
@@ -82,7 +110,7 @@ def test_configure_api_discards_an_expired_draft(tmp_path, monkeypatch):
     draft_path, _, _ = configure_paths(monkeypatch, tmp_path)
     form = schedule_form_data(start_date=(date.today() - timedelta(days=1)).isoformat())
     draft_path.write_text(json.dumps({
-        "version": 2,
+        "version": 3,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "form": form.model_dump(),
         "schedule": {},
@@ -116,7 +144,113 @@ def test_draft_api_returns_complete_review_payload(tmp_path, monkeypatch):
     assert payload["draft"]["form"]["experiment_name"] == "Seedling drought response"
     assert payload["preview"]["total_captures"] == 12
     assert payload["preview"]["timeline_points"]
-    assert payload["can_activate"] is True
+    assert payload["camera_aligned"] is False
+    assert payload["can_activate"] is False
+    assert payload["analysis_requested"] is False
+    assert payload["analysis_ready"] is False
+
+    with pytest.raises(HTTPException, match="camera alignment"):
+        schedule_api.activate_schedule(
+            schedule_api.ActivationRequest(
+                draft_hash=payload["draft"]["schedule_hash"]
+            )
+        )
+    aligned = schedule_api.confirm_draft_camera()
+    assert aligned["camera_aligned"] is True
+    assert aligned["can_activate"] is True
+
+
+def test_analysis_enabled_draft_requires_calibration_before_activation(
+    tmp_path,
+    monkeypatch,
+):
+    draft_path, schedule_path, heartbeat = configure_paths(monkeypatch, tmp_path)
+    write_heartbeat(heartbeat)
+
+    review = schedule_api.create_schedule_draft(
+        schedule_form_data(analysis_enabled=True)
+    )
+    schedule_api.confirm_draft_camera()
+
+    assert review["analysis_requested"] is True
+    assert review["analysis_ready"] is False
+    assert review["can_activate"] is False
+    with pytest.raises(HTTPException, match="calibration") as blocked:
+        schedule_api.activate_schedule(
+            schedule_api.ActivationRequest(
+                draft_hash=review["draft"]["schedule_hash"]
+            )
+        )
+    assert blocked.value.status_code == 409
+    assert not schedule_path.exists()
+
+    profile = save_analysis_profile(tmp_path / "analysis-profile.json")
+    attach_analysis_profile_to_draft(profile, draft_path=draft_path)
+    attached = schedule_api.attach_draft_analysis()
+    activated = schedule_api.activate_schedule(
+        schedule_api.ActivationRequest(
+            draft_hash=attached["draft"]["schedule_hash"]
+        )
+    )
+
+    assert attached["analysis_ready"] is True
+    assert attached["can_activate"] is True
+    assert activated["already_active"] is False
+    assert json.loads(schedule_path.read_text())["analysis"]
+
+
+def test_capture_only_draft_does_not_inherit_saved_analysis_profile(
+    tmp_path,
+    monkeypatch,
+):
+    draft_path, _, heartbeat = configure_paths(monkeypatch, tmp_path)
+    write_heartbeat(heartbeat)
+    save_analysis_profile(tmp_path / "analysis-profile.json")
+
+    review = schedule_api.create_schedule_draft(
+        schedule_form_data(analysis_enabled=False)
+    )
+
+    assert "analysis" not in review["draft"]["schedule"]
+    with pytest.raises(HTTPException, match="capture only"):
+        schedule_api.attach_draft_analysis()
+
+
+def test_calibration_survives_edits_but_not_a_new_experiment(
+    tmp_path,
+    monkeypatch,
+):
+    draft_path, _, heartbeat = configure_paths(monkeypatch, tmp_path)
+    write_heartbeat(heartbeat)
+    original = schedule_api.create_schedule_draft(
+        schedule_form_data(analysis_enabled=True)
+    )
+    profile = save_analysis_profile(tmp_path / "legacy-analysis-profile.json")
+    attach_analysis_profile_to_draft(profile, draft_path=draft_path)
+
+    edited = schedule_api.create_schedule_draft(
+        schedule_form_data(
+            analysis_enabled=True,
+            notes="Updated notes for the same experiment",
+        )
+    )
+
+    assert edited["analysis_ready"] is True
+    assert (
+        edited["draft"]["schedule"]["run"]["id"]
+        == original["draft"]["schedule"]["run"]["id"]
+    )
+
+    discard_schedule_draft(draft_path)
+    unrelated = schedule_api.create_schedule_draft(
+        schedule_form_data(
+            analysis_enabled=True,
+            experiment_name="A different experiment",
+        )
+    )
+
+    assert unrelated["analysis_ready"] is False
+    assert "analysis" not in unrelated["draft"]["schedule"]
 
 
 def test_activation_is_blocked_for_stale_scheduler_or_insufficient_storage(tmp_path, monkeypatch):
@@ -158,6 +292,7 @@ def test_finished_schedule_is_not_used_for_draft_comparison(tmp_path, monkeypatc
 def test_identical_active_schedule_is_prominent_and_needs_no_activation(tmp_path, monkeypatch):
     draft_path, _, heartbeat = configure_paths(monkeypatch, tmp_path)
     draft = persist_schedule_draft(schedule_form_data(), draft_path)
+    confirm_camera_alignment(draft_path)
     write_heartbeat(heartbeat, state="running", schedule={
         "hash": draft.schedule_hash,
         "timezone": "Europe/Amsterdam",
@@ -175,6 +310,7 @@ def test_identical_active_schedule_is_prominent_and_needs_no_activation(tmp_path
 def test_active_schedule_requires_confirmation_before_atomic_promotion(tmp_path, monkeypatch):
     draft_path, schedule_path, heartbeat = configure_paths(monkeypatch, tmp_path)
     draft = persist_schedule_draft(schedule_form_data(), draft_path)
+    confirm_camera_alignment(draft_path)
     write_heartbeat(heartbeat, state="running", schedule={
         "hash": "a" * 64,
         "timezone": "Europe/Amsterdam",
@@ -198,6 +334,7 @@ def test_active_schedule_requires_confirmation_before_atomic_promotion(tmp_path,
 def test_upcoming_schedule_requires_confirmation_before_replacement(tmp_path, monkeypatch):
     draft_path, schedule_path, heartbeat = configure_paths(monkeypatch, tmp_path)
     draft = persist_schedule_draft(schedule_form_data(), draft_path)
+    confirm_camera_alignment(draft_path)
     write_heartbeat(heartbeat, schedule={
         "hash": "b" * 64,
         "timezone": "Europe/Amsterdam",
@@ -221,14 +358,44 @@ def test_schedule_api_routes_and_react_workflow_are_complete():
     assert str(app.url_path_for("configure_schedule")) == "/api/schedule/configure"
     assert str(app.url_path_for("create_schedule_draft")) == "/api/schedule/draft"
     assert str(app.url_path_for("get_schedule_draft")) == "/api/schedule/draft"
+    assert (
+        str(app.url_path_for("attach_draft_analysis"))
+        == "/api/schedule/draft/analysis"
+    )
+    assert (
+        str(app.url_path_for("confirm_draft_camera"))
+        == "/api/schedule/draft/camera"
+    )
     assert str(app.url_path_for("activate_schedule")) == "/api/schedule/activate"
     app_source = (FRONTEND / "App.jsx").read_text()
     activation = (FRONTEND / "pages" / "ActivationPage.jsx").read_text()
     scheduler = (FRONTEND / "pages" / "SchedulerPage.jsx").read_text()
     components = (FRONTEND / "components.jsx").read_text()
+    builder = (FRONTEND / "pages" / "ScheduleBuilderPage.jsx").read_text()
+    review = (FRONTEND / "pages" / "ScheduleReviewPage.jsx").read_text()
+    analysis = (FRONTEND / "pages" / "AnalysisSetupPage.jsx").read_text()
     assert "ScheduleBuilderPage" in app_source
     assert "ScheduleReviewPage" in app_source
     assert "ActivationPage" in app_source
+    assert "Canopy measurements" in builder
+    assert "Images only" in builder
+    assert "Analyze canopy" in builder
+    assert "Continue to camera alignment" in builder
+    assert 'navigate("/camera?workflow=schedule")' in builder
+    assert "Canopy calibration required" in review
+    assert "Calibrate analysis" in review
+    assert "Use this calibration" in analysis
+    assert "Save and continue to review" in analysis
+    assert "Back to configure" in analysis
+    assert 'params.get("workflow") !== "schedule"' in analysis
+    assert '<Navigate to="/schedule" replace />' in analysis
+    assert "workflow_available" in analysis
+    assert 'to="/schedule/edit"' in analysis
+    assert "These controls determine which pixels remain white" in analysis
+    assert "scrollIntoView" in analysis
+    assert "prefers-reduced-motion" in analysis
+    assert '"Calibrate"' in components
+    assert '"Align camera"' in components
     assert "schedule?.hash === expected" in activation
     assert "setCountdown(5)" in activation
     assert "Create another schedule" not in activation

@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from gui.routes import schedule_api, scheduler
+from gui.routes import analysis, schedule_api, scheduler
 from phenopi.config import GUI_HOST, GUI_PORT, PROJECT_ROOT
 
 
@@ -42,7 +42,13 @@ def create_app() -> FastAPI:
             if content_length is not None:
                 try:
                     parsed_length = int(content_length)
-                    too_large = parsed_length < 0 or parsed_length > 1_000_000
+                    maximum = (
+                        14_000_000
+                        if request.url.path
+                        in {"/api/analysis/preview", "/api/analysis/roi"}
+                        else 1_000_000
+                    )
+                    too_large = parsed_length < 0 or parsed_length > maximum
                 except ValueError:
                     too_large = True
                 if too_large:
@@ -70,6 +76,7 @@ def create_app() -> FastAPI:
 
     app.include_router(schedule_api.router)
     app.include_router(scheduler.router)
+    app.include_router(analysis.router)
 
     react_dir = PROJECT_ROOT / "gui" / "react-dist"
     assets_dir = react_dir / "assets"

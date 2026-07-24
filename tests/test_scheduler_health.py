@@ -29,6 +29,7 @@ def write_heartbeat(
     last_capture=None,
     storage=None,
     capture_summary=None,
+    analysis_summary=None,
     recent_captures=None,
 ):
     path.write_text(
@@ -42,6 +43,7 @@ def write_heartbeat(
                 "last_capture": last_capture,
                 "storage": storage,
                 "capture_summary": capture_summary,
+                "analysis_summary": analysis_summary,
                 "recent_captures": recent_captures or [],
             }
         )
@@ -117,8 +119,15 @@ def test_heartbeat_publishes_capture_ledger_summary(tmp_path):
         "elapsed_unreported": 0,
     }
     recent = [{"status": "succeeded", "scheduled_at": NOW.isoformat()}]
+    analysis = {"total": 1, "succeeded": 1, "pending": 0}
     heartbeat.set_capture_status_provider(
-        lambda: {"summary": summary, "recent": recent, "last": recent[0], "daily_progress": {"date": "2026-07-22", "points": []}}
+        lambda: {
+            "summary": summary,
+            "recent": recent,
+            "last": recent[0],
+            "daily_progress": {"date": "2026-07-22", "points": []},
+            "analysis": analysis,
+        }
     )
 
     heartbeat.write()
@@ -128,6 +137,7 @@ def test_heartbeat_publishes_capture_ledger_summary(tmp_path):
     assert payload["recent_captures"] == recent
     assert payload["last_capture"] == recent[0]
     assert payload["daily_capture_progress"]["date"] == "2026-07-22"
+    assert payload["analysis_summary"] == analysis
 
 
 def test_heartbeat_restores_capture_for_same_schedule(tmp_path):
@@ -196,6 +206,7 @@ def test_status_exposes_optional_capture_and_storage(tmp_path):
     capture = {"status": "failed", "message": "camera error"}
     storage = {"free_bytes": 100, "used_percent": 90.0}
     summary = {"total": 2, "succeeded": 1}
+    analysis = {"total": 1, "succeeded": 0, "pending": 1}
     recent = [{"status": "succeeded"}]
     write_heartbeat(
         heartbeat_path,
@@ -203,6 +214,7 @@ def test_status_exposes_optional_capture_and_storage(tmp_path):
         last_capture=capture,
         storage=storage,
         capture_summary=summary,
+        analysis_summary=analysis,
         recent_captures=recent,
     )
 
@@ -211,6 +223,7 @@ def test_status_exposes_optional_capture_and_storage(tmp_path):
     assert result["last_capture"] == capture
     assert result["storage"] == storage
     assert result["capture_summary"] == summary
+    assert result["analysis_summary"] == analysis
     assert result["recent_captures"] == recent
 
 

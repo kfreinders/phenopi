@@ -21,7 +21,7 @@
   }
 }
 #schedule-dashboard { display: grid; gap: 1rem; }
-.schedule-hero { display: flex; justify-content: space-between; align-items: center; gap: 2rem; margin: 0; background: linear-gradient(135deg, #fff 55%, #edf6ff); }
+.schedule-hero { display: flex; justify-content: space-between; align-items: center; gap: 2rem; margin: 0; }
 .schedule-identity { flex: 1 1 auto; min-width: 0; }
 .schedule-identity h3 { margin: .65rem 0 .2rem; font-size: 1.55rem; }
 .schedule-identity p { margin: 0 0 .5rem; }
@@ -33,13 +33,74 @@
 .lifecycle-badge--upcoming { color: #175cd3; background: #dbeafe; }
 .lifecycle-badge--finished { color: #344054; background: #eaecf0; }
 .lifecycle-badge--empty { color: #93370d; background: #fef0c7; }
-.progress-ring { --progress: 0deg; display: grid; flex: 0 0 auto; place-items: center; width: 8rem; height: 8rem; border-radius: 50%; background: conic-gradient(var(--blue) var(--progress), #e4edf6 0); }
-.progress-ring::before { content: ""; grid-area: 1/1; width: 6.2rem; height: 6.2rem; border-radius: 50%; background: white; }
-.progress-ring div { z-index: 1; grid-area: 1/1; text-align: center; }
-.progress-ring strong, .progress-ring span, .progress-ring small { display: block; }
-.progress-ring strong { color: var(--blue-dark); font-size: 1.45rem; }
-.progress-ring span { color: var(--muted); font-size: .7rem; }
-.progress-ring small { margin-top: .15rem; color: var(--muted); font-size: .62rem; }
+.progress-ring { --progress: 0deg; --completion-reveal: 0deg; position: relative; display: grid; flex: 0 0 auto; place-items: center; width: 8rem; height: 8rem; border-radius: 50%; outline: none; background: conic-gradient(var(--blue) var(--progress), #e4edf6 0); }
+.progress-ring::before { content: ""; z-index: 1; grid-area: 1/1; width: 6.85rem; height: 6.85rem; border-radius: 50%; background: white; box-shadow: 0 0 0 1px rgb(15 95 185 / 4%); }
+.progress-ring::after { content: ""; z-index: 0; grid-area: 1/1; width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(#12b76a var(--completion-reveal), transparent 0); pointer-events: none; }
+.progress-ring--complete { animation: progress-ring-complete-arrival 780ms cubic-bezier(.2, .8, .2, 1), progress-ring-complete-pulse 2.5s 780ms ease-out infinite; }
+.progress-ring--complete::after { animation: progress-ring-complete-sweep 900ms cubic-bezier(.2, .8, .2, 1) forwards; }
+.progress-ring-value { z-index: 2; grid-area: 1/1; text-align: center; }
+.progress-ring-value strong { grid-area: 1/1; display: block; color: var(--blue-dark); font-size: 1.55rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.progress-ring-value { display: grid; place-items: center; }
+.progress-ring-count { opacity: 0; }
+.progress-ring--complete .progress-ring-value strong { color: #067647; transition: color 320ms 620ms ease; }
+.progress-ring--show-count::before { animation: progress-ring-inner-to-count 480ms cubic-bezier(.2, .8, .2, 1); }
+.progress-ring--show-percentage::before { animation: progress-ring-inner-to-percentage 480ms cubic-bezier(.2, .8, .2, 1); }
+.progress-ring--show-count .progress-ring-percentage { animation: progress-ring-value-out 480ms ease forwards; }
+.progress-ring--show-count .progress-ring-count { animation: progress-ring-value-in 480ms ease forwards; }
+.progress-ring--show-percentage .progress-ring-percentage { animation: progress-ring-value-in 480ms ease forwards; }
+.progress-ring--show-percentage .progress-ring-count { animation: progress-ring-value-out 480ms ease forwards; }
+.progress-ring:focus-visible { outline: 3px solid rgb(47 128 237 / 22%); outline-offset: 3px; }
+@keyframes progress-ring-inner-to-count {
+  0% { transform: scale(1); }
+  42% { transform: scale(.08); }
+  66% { transform: scale(1.06); }
+  82% { transform: scale(.985); }
+  100% { transform: scale(1); }
+}
+@keyframes progress-ring-inner-to-percentage {
+  0% { transform: scale(1); }
+  42% { transform: scale(.08); }
+  66% { transform: scale(1.06); }
+  82% { transform: scale(.985); }
+  100% { transform: scale(1); }
+}
+@keyframes progress-ring-value-out {
+  0%, 34% { opacity: 1; transform: scale(1); }
+  43%, 100% { opacity: 0; transform: scale(.72); }
+}
+@keyframes progress-ring-value-in {
+  0%, 43% { opacity: 0; transform: scale(.72); }
+  66% { opacity: 1; transform: scale(1.08); }
+  82% { transform: scale(.985); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes progress-ring-complete-arrival {
+  0% { transform: scale(.96); }
+  62% { transform: scale(1.045); }
+  100% { transform: scale(1); }
+}
+@keyframes progress-ring-complete-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(18 183 106 / 0%), 0 0 0 0 rgb(18 183 106 / 0%); }
+  38% { box-shadow: 0 0 0 .38rem rgb(18 183 106 / 20%), 0 0 0 .82rem rgb(18 183 106 / 9%); }
+  72% { box-shadow: 0 0 0 .62rem rgb(18 183 106 / 0%), 0 0 0 1.18rem rgb(18 183 106 / 0%); }
+}
+@property --completion-reveal {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes progress-ring-complete-sweep {
+  to { --completion-reveal: 360deg; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress-ring { animation: none; }
+  .progress-ring--complete::after { --completion-reveal: 360deg; animation: none; }
+  .progress-ring--show-count::before, .progress-ring--show-percentage::before,
+  .progress-ring--show-count .progress-ring-percentage,
+  .progress-ring--show-count .progress-ring-count,
+  .progress-ring--show-percentage .progress-ring-percentage,
+  .progress-ring--show-percentage .progress-ring-count { animation-duration: 1ms; }
+}
 .schedule-storage { display: grid; grid-template-columns: auto minmax(8rem, 15rem); align-items: center; gap: .75rem; width: fit-content; max-width: 100%; margin-top: .85rem; padding-top: .75rem; border-top: 1px solid #d6e4f2; color: var(--muted); font-size: .72rem; }
 .schedule-storage > div:first-child { display: grid; grid-template-columns: auto auto; gap: .05rem .45rem; align-items: baseline; }
 .schedule-storage span { font-weight: 700; }
