@@ -7,7 +7,6 @@ from pydantic import BaseModel, ConfigDict
 
 from phenopi.config import (
     DEFAULT_SCHEDULE_PATH,
-    ANALYSIS_PROFILE_PATH,
     SCHEDULE_DRAFT_PATH,
     SCHEDULER_HEARTBEAT_PATH,
 )
@@ -41,7 +40,9 @@ def configure_schedule(edit: bool = False) -> dict:
         "form": loaded[0].form.form_arguments() if edit and loaded else form_defaults(),
         "minimum_start_date": date.today().isoformat(),
         "draft_state": "ready" if loaded else "none",
-        "analysis_profile_saved": ANALYSIS_PROFILE_PATH.exists(),
+        "analysis_profile_saved": bool(
+            loaded and loaded[0].schedule.get("analysis")
+        ),
     }
 
 
@@ -51,7 +52,6 @@ def create_schedule_draft(form: ScheduleFormData) -> dict:
         persist_schedule_draft(
             form,
             SCHEDULE_DRAFT_PATH,
-            ANALYSIS_PROFILE_PATH,
         )
     except OSError as exc:
         raise HTTPException(
@@ -83,7 +83,6 @@ def attach_draft_analysis() -> dict:
     try:
         attach_analysis_profile_to_draft(
             draft_path=SCHEDULE_DRAFT_PATH,
-            analysis_profile_path=ANALYSIS_PROFILE_PATH,
         )
     except FileNotFoundError as exc:
         raise HTTPException(

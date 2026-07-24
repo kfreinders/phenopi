@@ -7,7 +7,11 @@ from gui.services.analysis_preview import (
     build_analysis_preview,
     build_roi_preview,
 )
-from phenopi.config import ANALYSIS_PROFILE_PATH
+from phenopi.config import SCHEDULE_DRAFT_PATH
+from gui.services.schedule_drafts import (
+    attach_analysis_profile_to_draft,
+    load_current_schedule_draft,
+)
 from scripts.analysis.profile import AnalysisProfile
 from scripts.analysis.config import AnalysisConfig
 from scripts.analysis.roi import RoiDefinition
@@ -69,9 +73,16 @@ class SaveAnalysisProfileRequest(BaseModel):
 
 @router.get("/configure")
 def configure_analysis() -> dict:
+    loaded = load_current_schedule_draft(SCHEDULE_DRAFT_PATH)
+    workflow_available = bool(
+        loaded and loaded[0].form.analysis_enabled
+    )
     return {
         "config": AnalysisConfig().to_dict(),
-        "profile_saved": ANALYSIS_PROFILE_PATH.exists(),
+        "workflow_available": workflow_available,
+        "profile_saved": bool(
+            workflow_available and loaded[0].schedule.get("analysis")
+        ),
     }
 
 
@@ -107,13 +118,21 @@ def detect_analysis_roi(request: RoiPreviewRequest) -> dict:
 
 @router.put("/profile")
 def save_analysis_profile(request: SaveAnalysisProfileRequest) -> dict:
+    if load_current_schedule_draft(SCHEDULE_DRAFT_PATH) is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Create an analysis-enabled experiment draft first.",
+        )
     try:
         profile = AnalysisProfile(
             schema_version=1,
             config=AnalysisConfig.from_dict(request.config),
             roi=RoiDefinition.from_dict(request.roi),
         )
-        profile.save(ANALYSIS_PROFILE_PATH)
+        attach_analysis_profile_to_draft(
+            profile,
+            draft_path=SCHEDULE_DRAFT_PATH,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except OSError as exc:
@@ -130,4 +149,7 @@ def save_analysis_profile(request: SaveAnalysisProfileRequest) -> dict:
 
 @router.delete("/profile", status_code=204)
 def delete_analysis_profile() -> None:
-    ANALYSIS_PROFILE_PATH.unlink(missing_ok=True)
+    raise HTTPException(
+        status_code=409,
+        detail="Analysis calibration is managed with its experiment draft.",
+    )

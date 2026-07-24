@@ -7,7 +7,11 @@ from fastapi import HTTPException
 from gui.app import app
 from phenopi.config import PROJECT_ROOT
 from gui.routes import schedule_api
-from gui.services.schedule_drafts import persist_schedule_draft
+from gui.services.schedule_drafts import (
+    attach_analysis_profile_to_draft,
+    discard_schedule_draft,
+    persist_schedule_draft,
+)
 from gui.services.schedule_form import ScheduleFormData
 from scripts.analysis.config import AnalysisConfig
 from scripts.analysis.profile import AnalysisProfile
@@ -52,17 +56,15 @@ def configure_paths(monkeypatch, tmp_path):
     draft = tmp_path / "schedule-draft.json"
     schedule = tmp_path / "schedule.json"
     heartbeat = tmp_path / "scheduler-heartbeat.json"
-    analysis_profile = tmp_path / "analysis-profile.json"
     monkeypatch.setattr(schedule_api, "SCHEDULE_DRAFT_PATH", draft)
     monkeypatch.setattr(schedule_api, "DEFAULT_SCHEDULE_PATH", schedule)
     monkeypatch.setattr(schedule_api, "SCHEDULER_HEARTBEAT_PATH", heartbeat)
-    monkeypatch.setattr(schedule_api, "ANALYSIS_PROFILE_PATH", analysis_profile)
     return draft, schedule, heartbeat
 
 
 def save_analysis_profile(path):
     config = AnalysisConfig(roi_rows=1, roi_cols=1)
-    AnalysisProfile(
+    profile = AnalysisProfile(
         schema_version=1,
         config=config,
         roi=RoiDefinition(
@@ -74,7 +76,9 @@ def save_analysis_profile(path):
             config_fingerprint=config.fingerprint,
             circles=(RoiCircle(0, 0, 0.5, 0.5, 0.2),),
         ),
-    ).save(path)
+    )
+    profile.save(path)
+    return profile
 
 
 def test_configure_api_and_react_form_expose_safe_defaults(tmp_path, monkeypatch):
@@ -167,7 +171,8 @@ def test_analysis_enabled_draft_requires_calibration_before_activation(
     assert blocked.value.status_code == 409
     assert not schedule_path.exists()
 
-    save_analysis_profile(tmp_path / "analysis-profile.json")
+    profile = save_analysis_profile(tmp_path / "analysis-profile.json")
+    attach_analysis_profile_to_draft(profile, draft_path=draft_path)
     attached = schedule_api.attach_draft_analysis()
     activated = schedule_api.activate_schedule(
         schedule_api.ActivationRequest(
@@ -196,6 +201,43 @@ def test_capture_only_draft_does_not_inherit_saved_analysis_profile(
     assert "analysis" not in review["draft"]["schedule"]
     with pytest.raises(HTTPException, match="capture only"):
         schedule_api.attach_draft_analysis()
+
+
+def test_calibration_survives_edits_but_not_a_new_experiment(
+    tmp_path,
+    monkeypatch,
+):
+    draft_path, _, heartbeat = configure_paths(monkeypatch, tmp_path)
+    write_heartbeat(heartbeat)
+    original = schedule_api.create_schedule_draft(
+        schedule_form_data(analysis_enabled=True)
+    )
+    profile = save_analysis_profile(tmp_path / "legacy-analysis-profile.json")
+    attach_analysis_profile_to_draft(profile, draft_path=draft_path)
+
+    edited = schedule_api.create_schedule_draft(
+        schedule_form_data(
+            analysis_enabled=True,
+            notes="Updated notes for the same experiment",
+        )
+    )
+
+    assert edited["analysis_ready"] is True
+    assert (
+        edited["draft"]["schedule"]["run"]["id"]
+        == original["draft"]["schedule"]["run"]["id"]
+    )
+
+    discard_schedule_draft(draft_path)
+    unrelated = schedule_api.create_schedule_draft(
+        schedule_form_data(
+            analysis_enabled=True,
+            experiment_name="A different experiment",
+        )
+    )
+
+    assert unrelated["analysis_ready"] is False
+    assert "analysis" not in unrelated["draft"]["schedule"]
 
 
 def test_activation_is_blocked_for_stale_scheduler_or_insufficient_storage(tmp_path, monkeypatch):
@@ -321,9 +363,12 @@ def test_schedule_api_routes_and_react_workflow_are_complete():
     assert "Continue to calibration" in builder
     assert "Canopy calibration required" in review
     assert "Calibrate analysis" in review
-    assert "Use saved calibration" in analysis
+    assert "Use this calibration" in analysis
     assert "Save and continue to review" in analysis
     assert "Back to configure" in analysis
+    assert 'params.get("workflow") !== "schedule"' in analysis
+    assert '<Navigate to="/schedule" replace />' in analysis
+    assert "workflow_available" in analysis
     assert 'to="/schedule/edit"' in analysis
     assert "These controls determine which pixels remain white" in analysis
     assert "scrollIntoView" in analysis

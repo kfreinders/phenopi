@@ -9,7 +9,6 @@ from uuid import uuid4
 from pydantic import BaseModel
 
 from phenopi.config import (
-    ANALYSIS_PROFILE_PATH,
     DEFAULT_SCHEDULE_PATH,
     SCHEDULE_DRAFT_PATH,
 )
@@ -43,21 +42,37 @@ class ScheduleDraft(BaseModel):
 def persist_schedule_draft(
     form: ScheduleFormData,
     path: Path = SCHEDULE_DRAFT_PATH,
-    analysis_profile_path: Path = ANALYSIS_PROFILE_PATH,
 ) -> ScheduleDraft:
     preview = build_schedule_preview(**form.preview_arguments())
-    run = {
-        "id": str(uuid4()),
-        "name": form.experiment_name,
-        "researcher": form.researcher,
-        "notes": form.notes,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
+    existing = None
+    if path.exists():
+        try:
+            existing, _ = load_schedule_draft(path)
+        except (PastStartDateError, ValueError):
+            existing = None
+    run = (
+        {
+            **existing.schedule["run"],
+            "name": form.experiment_name,
+            "researcher": form.researcher,
+            "notes": form.notes,
+        }
+        if existing
+        else {
+            "id": str(uuid4()),
+            "name": form.experiment_name,
+            "researcher": form.researcher,
+            "notes": form.notes,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
     schedule = {**preview.as_schedule_dict(), "run": run}
-    if form.analysis_enabled and analysis_profile_path.exists():
-        schedule["analysis"] = AnalysisProfile.load(
-            analysis_profile_path
-        ).to_dict()
+    if (
+        form.analysis_enabled
+        and existing
+        and existing.schedule.get("analysis") is not None
+    ):
+        schedule["analysis"] = existing.schedule["analysis"]
     draft = ScheduleDraft(
         created_at=datetime.now(timezone.utc).isoformat(),
         form=form,
@@ -115,23 +130,26 @@ def discard_schedule_draft(path: Path = SCHEDULE_DRAFT_PATH) -> None:
 
 
 def attach_analysis_profile_to_draft(
+    profile: AnalysisProfile | None = None,
     *,
     draft_path: Path = SCHEDULE_DRAFT_PATH,
-    analysis_profile_path: Path = ANALYSIS_PROFILE_PATH,
 ) -> ScheduleDraft:
-    """Snapshot the current calibration into an analysis-enabled draft."""
+    """Attach a calibration to its analysis-enabled experiment draft."""
     draft, _ = load_schedule_draft(draft_path)
     if not draft.form.analysis_enabled:
         raise ValueError(
             "This experiment was configured for image capture only."
         )
-    try:
-        profile = AnalysisProfile.load(analysis_profile_path)
-    except FileNotFoundError as exc:
+    if profile is None and draft.schedule.get("analysis") is None:
         raise ValueError(
             "Complete and save the canopy analysis calibration first."
-        ) from exc
-    schedule = {**draft.schedule, "analysis": profile.to_dict()}
+        )
+    analysis = (
+        profile.to_dict()
+        if profile is not None
+        else draft.schedule["analysis"]
+    )
+    schedule = {**draft.schedule, "analysis": analysis}
     updated = draft.model_copy(
         update={
             "schedule": schedule,

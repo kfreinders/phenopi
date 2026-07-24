@@ -37,6 +37,8 @@ def test_main_navigation_keeps_the_builder_as_a_contextual_workflow():
 
     assert navigation.index('to="/scheduler"') < navigation.index('to="/camera"')
     assert 'to="/schedule"' not in navigation
+    assert 'to="/analysis"' not in navigation
+    assert "Analysis setup" not in navigation
     assert "React Router" not in navigation
 
 

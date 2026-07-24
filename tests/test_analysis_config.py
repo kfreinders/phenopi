@@ -48,3 +48,7 @@ def test_analysis_config_rejects_unknown_fields_and_versions():
 def test_analysis_config_reports_invalid_json():
     with pytest.raises(ValueError, match="not valid JSON"):
         AnalysisConfig.from_json("")
+
+
+def test_analysis_config_uses_safe_calibration_defaults():
+    assert AnalysisConfig().threshold == 145

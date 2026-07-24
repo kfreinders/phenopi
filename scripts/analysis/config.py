@@ -18,7 +18,7 @@ class AnalysisConfig:
 
     rotate_angle: float = 0.0
     sepchannel: str = "a"
-    threshold: int = 100
+    threshold: int = 145
     fill_size: int = 200
     margin_x: int = 200
     margin_y: int = 200

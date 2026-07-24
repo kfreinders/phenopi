@@ -74,6 +74,5 @@ export function Navigation() {
   return <nav className="tabs" aria-label="Phenopi sections">
     <NavLink className={({ isActive }) => `tab${isActive ? " active" : ""}`} to="/scheduler">Scheduler status</NavLink>
     <NavLink className={({ isActive }) => `tab${isActive ? " active" : ""}`} to="/camera">Camera preview</NavLink>
-    <NavLink className={({ isActive }) => `tab${isActive ? " active" : ""}`} to="/analysis">Analysis setup</NavLink>
   </nav>;
 }
